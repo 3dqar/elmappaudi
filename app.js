@@ -117,9 +117,9 @@ function get(pid){return state.values[pid]}
 function setMetric(pid,value){state.values[pid]=value;state.lastData=Date.now();render();}
 async function queryPID(pid){
  const out=await run('01'+pid);
- if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|\?/i.test(out)){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();return null;}
+ if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|\?/i.test(out)){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();render();return null;}
  const bytes=payload(out,'41',pid);
- if(!bytes||!PIDS[pid]){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();return null;}
+ if(!bytes||!PIDS[pid]){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();render();return null;}
  if(bytes.length<(new Set(['0C','10','23','42','5E','63']).has(pid)?2:1))return null;
  const n=PIDS[pid][2](bytes);
  if(Number.isFinite(n)){state.misses[pid]=0;state.unsupported.delete(pid);setMetric(pid,n);renderSensors();return n}
@@ -149,15 +149,16 @@ function format(v,dec=1){return Number.isFinite(v)?Number(v).toFixed(dec).replac
 function render(){
  const v=state.values;
  const put=(id,txt)=>{if($(id))$(id).textContent=txt};
- put('dashrpm',format(v['0C'],0));put('dashspeed',format(v['0D'],0));put('dashcoolant',format(v['05'],0));put('dashboost',boostString());
- put('sport-rpm',format(v['0C'],0));put('sport-speed',format(v['0D'],0));
- put('sport-boost',boostString());put('sport-maf',format(v['10'],1));put('sport-fuel',format(v['5E'],1));put('sport-rail',format(v['23'],0));
- put('sport-load',format(v['04'],0));put('sport-moment',torqueString());put('sport-kw',powerString());
- put('supply',format(v['42'],2));put('sport-intake',format(v['0F'],0));
+ const display=(pid,dec=1)=>Number.isFinite(v[pid])?format(v[pid],dec):(state.unsupported.has(pid)||(state.supportChecked&&!state.supported.has(pid))?'н/д':'—');
+ put('dashrpm',display('0C',0));put('dashspeed',display('0D',0));put('dashcoolant',display('05',0));put('dashboost',boostString());
+ put('sport-rpm',display('0C',0));put('sport-speed',display('0D',0));
+ put('sport-boost',boostString());put('sport-maf',display('10',1));put('sport-fuel',display('5E',1));put('sport-rail',display('23',0));
+ put('sport-load',display('04',0));put('sport-moment',torqueString());put('sport-kw',powerString());
+ put('supply',display('42',2));put('sport-intake',display('0F',0));
  $('ring').style.setProperty('--angle',Math.min(270,Math.max(0,(v['0C']||0)/5500*270))+'deg');
  $('streamstate').textContent=state.stream?'Мониторинг активен':'Остановлен';
 }
-function boostString(){const a=get('0B'),b=get('33');return Number.isFinite(a)&&Number.isFinite(b)?format((a-b)/100,2)+' bar':Number.isFinite(a)?format(a/100,2)+' bar abs':'—'}
+function boostString(){const a=get('0B'),b=get('33');return Number.isFinite(a)&&Number.isFinite(b)?format((a-b)/100,2)+' bar':Number.isFinite(a)?format(a/100,2)+' bar abs':(state.unsupported.has('0B')||(state.supportChecked&&!state.supported.has('0B'))?'н/д':'—')}
 function torqueNumber(){const a=get('62'),r=get('63');return Number.isFinite(a)&&Number.isFinite(r)?r*a/100:null}
 function torqueString(){const x=torqueNumber();return x===null?'—':format(x,0)+' Н·м'}
 function powerString(){const tq=torqueNumber(),rpm=get('0C');return tq!==null&&Number.isFinite(rpm)?format(tq*rpm/9549,1)+' кВт':'—'}
