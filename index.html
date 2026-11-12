@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d17"><meta name="description" content="VAG Diagnostic — Audi OBD-II BLE диагностика"><title>VAG Diagnostic Pro</title><link rel="stylesheet" href="./style.css?v=7"></head>
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d17"><meta name="description" content="VAG Diagnostic — Audi OBD-II BLE диагностика"><title>VAG Diagnostic Pro</title><link rel="stylesheet" href="./style.css?v=8"></head>
 <body>
 <header><div><div class="brand">VAG · DIAGNOSTICS</div><h1>VAG Diagnostic <span style="color:#789aff">Pro</span></h1></div><div class="status" id="connection">● Не подключён</div></header>
 <section class="page" id="page-home">
@@ -24,33 +24,46 @@
 <div class="notice">Данные показываются только после ответа автомобиля. Дополнительные VAG-блоки (ABS, Airbag, приборка) этим стандартным ELM327-сканированием не охватываются.</div>
 </section>
 <section class="page active" id="page-sport">
-<div class="sport-compact">
- <div class="sport-top"><div><div class="sport-eyebrow">AUDI · LIVE COCKPIT</div><div class="sport-heading">SPORT <span>MODE</span></div></div><div class="sport-top-right"><span id="sport-live" class="sport-indicator">● OFFLINE</span><button type="button" class="sport-menu" id="sport-menu">⚙ Меню</button></div></div>
- <div class="sport-main">
-  <div class="sport-rpm">
-   <div class="ring" id="ring"><div class="ring-content"><div class="sport-rpm-label">ENGINE RPM</div><div class="number" id="sport-rpm">—</div><div class="sport-rpm-unit">об/мин</div></div></div>
-  </div>
-  <div class="sport-primary">
-    <div class="boost-name">TURBO BOOST</div><div class="boost-main" id="sport-boost">—</div><div class="boost-unit">bar · избыточное</div>
-    <div class="boost-source" id="boost-source">Ожидание MAP</div>
-    <button class="boost-zero" id="zeroBoost" data-needs-ble disabled>◎ Калибровка 0</button>
-  </div>
+<div class="cockpit">
+ <div class="cockpit-head">
+   <div><div class="cockpit-overline"><span class="thinbar"></span> QUATTRO-STYLE TELEMETRY / VAG</div><div class="cockpit-title">SPORT<span> // </span>COCKPIT</div></div>
+   <div class="cockpit-controls"><span id="sport-live" class="sport-indicator">● OFFLINE</span><button id="sport-menu" class="cockpit-gear" type="button" aria-label="Настройки и диагностика">⚙</button></div>
  </div>
- <div class="sport-metrics">
-  <div class="sport-tile"><span>СКОРОСТЬ</span><b id="sport-speed">—</b><small>км/ч</small></div>
-  <div class="sport-tile"><span>ВОЗДУХ MAF</span><b id="sport-maf">—</b><small>г/с</small></div>
-  <div class="sport-tile"><span>НАГРУЗКА</span><b id="sport-load">—</b><small>%</small></div>
-  <div class="sport-tile"><span>ТЕМП. ВПУСКА</span><b id="sport-intake">—</b><small>°C</small></div>
-  <div class="sport-tile"><span>ОХЛАЖДЕНИЕ</span><b id="sport-coolant">—</b><small>°C</small></div>
-  <div class="sport-tile"><span>ДАВЛЕНИЕ MAP</span><b id="sport-map">—</b><small>bar abs</small></div>
+ <div class="cockpit-hero">
+   <div class="rpm-side">
+     <div class="rpm-caption">ENGINE REVOLUTION <small>01 / RPM</small></div>
+     <div class="ring" id="ring"><div class="ring-content"><div class="number" id="sport-rpm">—</div><div class="rpm-unit">RPM</div></div></div>
+     <div class="rpm-bottom"><span>IDLE</span><span class="rpm-marker">2K <b>4K</b> 6K</span><span>MAX</span></div>
+   </div>
+   <div class="boost-side">
+     <div class="boost-caption"><span class="boost-asterisk">✦</span> TURBO PRESSURE</div>
+     <div class="boost-reading"><span id="sport-boost">—</span><small>BAR</small></div>
+     <div class="boost-sub">RELATIVE BOOST <span id="boost-label">ESTIMATE</span></div>
+     <div class="boost-meter"><div id="boost-fill"></div><i></i></div>
+     <div class="boost-scale"><span>0</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0+</span></div>
+     <div class="boost-source" id="boost-source">Ожидание MAP</div>
+   </div>
  </div>
- <div class="sport-bottom">
-   <span id="sport-freshness">Нет данных ЭБУ</span>
-   <div class="sport-actions"><button id="sport-connect" class="sport-mini-action">Подключить</button><button id="start-sport" data-needs-ble disabled>▶ LIVE</button><button id="stop-sport" class="secondary" data-needs-ble disabled>■</button></div>
+ <div class="cockpit-cards">
+   <div class="dash-cell speed-cell"><div class="dash-name"><span class="dash-indicator cyan"></span> SPEED</div><div class="dash-value" id="sport-speed">—</div><div class="dash-unit">KM/H</div><div class="dash-track"><div id="speed-fill"></div></div></div>
+   <div class="dash-cell"><div class="dash-name"><span class="dash-indicator"></span> AIR FLOW</div><div class="dash-value" id="sport-maf">—</div><div class="dash-unit">MAF · g/s</div><div class="dash-track"><div id="maf-fill"></div></div></div>
+   <div class="dash-cell"><div class="dash-name"><span class="dash-indicator orange"></span> ENGINE LOAD</div><div class="dash-value" id="sport-load">—</div><div class="dash-unit">PERCENT</div><div class="dash-track"><div id="load-fill"></div></div></div>
+   <div class="dash-cell"><div class="dash-name"><span class="dash-indicator"></span> INTAKE</div><div class="dash-value" id="sport-intake">—</div><div class="dash-unit">°C · AIR</div><div class="dash-track"><div id="intake-fill"></div></div></div>
+   <div class="dash-cell"><div class="dash-name"><span class="dash-indicator cyan"></span> COOLANT</div><div class="dash-value" id="sport-coolant">—</div><div class="dash-unit">°C · ENGINE</div><div class="dash-track"><div id="coolant-fill"></div></div></div>
+   <div class="dash-cell"><div class="dash-name"><span class="dash-indicator orange"></span> INTAKE MAP</div><div class="dash-value" id="sport-map">—</div><div class="dash-unit">BAR ABS</div><div class="dash-track"><div id="map-fill"></div></div></div>
+ </div>
+ <div class="cockpit-graphs">
+  <div class="graph-top"><div><span class="graph-pulse"></span> LIVE SIGNAL <small>RPM / BOOST</small></div><span id="sport-freshness">Нет данных ЭБУ</span></div>
+  <canvas id="graph" aria-label="График оборотов и давления"></canvas>
+  <div class="graph-legend"><span><i class="legend-blue"></i>RPM</span><span><i class="legend-green"></i>MAP</span><span class="graph-disclaimer">Реальные данные ECU · без симуляции</span></div>
+ </div>
+ <div class="cockpit-footer">
+  <span id="sport-device">OBDII · НЕ ПОДКЛЮЧЁН</span>
+  <div><button id="sport-connect" class="sport-power">CONNECT</button><button id="start-sport" data-needs-ble disabled>▶ LIVE</button><button id="stop-sport" data-needs-ble disabled>■</button></div>
  </div>
  <div class="sport-aux" hidden>
- <span id="sport-fuel"></span><span id="sport-rail"></span><span id="sport-moment"></span><span id="sport-kw"></span><span id="supply"></span>
- <canvas id="graph"></canvas>
+  <span id="sport-fuel"></span><span id="sport-rail"></span><span id="sport-moment"></span><span id="sport-kw"></span><span id="supply"></span>
+  <button id="zeroBoost" data-needs-ble disabled>Калибровка 0</button>
  </div>
 </div>
 </section>
@@ -70,4 +83,4 @@
 <div class="card"><div class="split"><h3>Технический журнал</h3><span class="pill">BLE / ELM</span></div><div class="log" id="log" aria-live="polite"></div><div class="btnrow"><button id="copylog" class="secondary">Копировать журнал</button><button id="clearlog" class="outline">Очистить журнал</button></div></div>
 <div class="notice">Используй диагностику только на стоянке. Не все значения доступны на всех ЭБУ, а адаптеры с надписью «ELM327 v1.5» часто являются клонами. Не предназначено для кодирования, адаптаций и удаления ошибок.</div>
 </section>
-<nav><div class="navinner"><button data-page="home"><span>⌂</span>Главная</button><button class="active" data-page="sport"><span>◉</span>Sport</button><button data-page="errors"><span>⚠</span>Ошибки</button><button data-page="sensors"><span>≋</span>Датчики</button><button data-page="settings"><span>⚙</span>Настройки</button></div></nav><div id="toast"></div><script src="./app.js?v=7"></script></body></html>
+<nav><div class="navinner"><button data-page="home"><span>⌂</span>Главная</button><button class="active" data-page="sport"><span>◉</span>Sport</button><button data-page="errors"><span>⚠</span>Ошибки</button><button data-page="sensors"><span>≋</span>Датчики</button><button data-page="settings"><span>⚙</span>Настройки</button></div></nav><div id="toast"></div><script src="./app.js?v=8"></script></body></html>
