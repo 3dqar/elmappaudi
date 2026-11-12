@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const UUIDS=['0000fff0-0000-1000-8000-00805f9b34fb','0000ffe0-0000-1000-8000-00805f9b34fb','0000ffe5-0000-1000-8000-00805f9b34fb','0000ffb0-0000-1000-8000-00805f9b34fb','000018f0-0000-1000-8000-00805f9b34fb','6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
-const state={device:null,server:null,tx:null,rx:null,connected:false,pending:null,buffer:'',queue:Promise.resolve(),stream:false,streamToken:0,streamIndex:0,values:{},supported:new Set(),supportChecked:false,dtcs:[],protocol:'—',history:[],lastData:0,vin:null,ecuName:null,calId:null,generation:0,profile:'Audi A4 B7 · 2.0 TDI'};
+const state={device:null,server:null,tx:null,rx:null,connected:false,pending:null,buffer:'',queue:Promise.resolve(),stream:false,streamToken:0,streamIndex:0,values:{},supported:new Set(),supportChecked:false,dtcs:[],protocol:'—',history:[],lastData:0,unsupported:new Set(),misses:{},pollCount:0,vin:null,ecuName:null,calId:null,generation:0,profile:'Audi A4 B7 · 2.0 TDI'};
 const PIDS={
 '04':['Нагрузка двигателя','%',a=>a[0]*100/255],
 '05':['Температура ОЖ','°C',a=>a[0]-40],
@@ -21,7 +21,11 @@ const PIDS={
 '62':['Фактический момент','%',a=>a[0]-125],
 '63':['Опорный момент','Н·м',a=>a[0]*256+a[1]]
 };
-const COMMANDS=['0C','0D','0B','33','05','0F','10','04','23','5E','42','2F','5C','62','63','61'];
+// Prioritize RPM, boost and speed instead of polling every PID in a slow round-robin.
+const FAST_PIDS=['0C','0B','0D','10','04'];
+const SLOW_PIDS=['05','0F','33','42','23','5E','2F','5C','62','63','61','11'];
+const COMMANDS=[...FAST_PIDS,...SLOW_PIDS];
+const MAX_MISSES=2;
 const DB={
 P0100:['Неисправность цепи MAF','Датчик массового расхода воздуха, проводка, питание, подсос воздуха.'],
 P0101:['MAF: сигнал вне диапазона','Загрязнение MAF, негерметичность впуска, воздушный фильтр, EGR.'],
@@ -48,7 +52,7 @@ const short=u=>String(u).replace('-0000-1000-8000-00805f9b34fb','').slice(0,13);
 function setConnection(ok){state.connected=ok;$('connection').textContent=ok?'● Подключён':'● Не подключён';$('connection').className='status'+(ok?' connected':'');document.querySelectorAll('[data-needs-ble]').forEach(el=>el.disabled=!ok);$('connect').disabled=ok;$('disconnect').disabled=!ok}
 function page(name){document.querySelectorAll('.page').forEach(el=>el.classList.toggle('active',el.id==='page-'+name));document.querySelectorAll('nav button').forEach(el=>el.classList.toggle('active',el.dataset.page===name));window.scrollTo({top:0,behavior:'instant'});if(name==='sport')drawChart();}
 document.querySelectorAll('nav button').forEach(el=>el.addEventListener('click',()=>page(el.dataset.page)));
-function onDisconnect(){state.generation++;stopStream();if(state.pending){clearTimeout(state.pending.timer);state.pending.reject(Error('BLE отключился'));state.pending=null}state.server=null;state.tx=null;state.rx=null;state.vin=null;state.ecuName=null;state.calId=null;state.values={};state.supported.clear();state.supportChecked=false;setConnection(false);$('device').textContent='—';$('bleprofile').textContent='—';$('ecustatus').textContent='ЭБУ ещё не проверен';$('pidcount').textContent='—';$('scanstatus').textContent='Ожидание подключения';updateIdentity();render();renderSensors();log('Соединение разорвано');}
+function onDisconnect(){state.generation++;stopStream();if(state.pending){clearTimeout(state.pending.timer);state.pending.reject(Error('BLE отключился'));state.pending=null}state.server=null;state.tx=null;state.rx=null;state.vin=null;state.ecuName=null;state.calId=null;state.values={};state.supported.clear();state.unsupported.clear();state.misses={};state.supportChecked=false;setConnection(false);$('device').textContent='—';$('bleprofile').textContent='—';$('ecustatus').textContent='ЭБУ ещё не проверен';$('pidcount').textContent='—';$('scanstatus').textContent='Ожидание подключения';updateIdentity();render();renderSensors();log('Соединение разорвано');}
 async function connect(){
  if(!navigator.bluetooth){toast('Используй Bluefy: Web Bluetooth недоступен');return}
  try{
@@ -63,7 +67,7 @@ async function connect(){
  if(!w||!r)throw Error('Не найдены характеристики записи/уведомлений');
  state.tx=w;state.rx=r;await r.startNotifications();r.addEventListener('characteristicvaluechanged',onNotify);
  $('device').textContent=dev.name||'OBDII';$('bleprofile').textContent=short(chosen.s.uuid)+' · '+short(w.uuid)+' / '+short(r.uuid);
- state.generation++;state.vin=null;state.ecuName=null;state.calId=null;state.supported.clear();state.supportChecked=false;state.values={};state.history=[];state.dtcs=[];updateIdentity();renderDTC();renderSensors();render();setConnection(true);log('Подключено. BLE '+$('bleprofile').textContent);
+ state.generation++;state.vin=null;state.ecuName=null;state.calId=null;state.supported.clear();state.unsupported.clear();state.misses={};state.pollCount=0;state.supportChecked=false;state.values={};state.history=[];state.dtcs=[];updateIdentity();renderDTC();renderSensors();render();setConnection(true);log('Подключено. BLE '+$('bleprofile').textContent);
  await run('ATI',4000);await run('ATE0',3000);await run('ATL0',3000);await run('ATS0',3000);await run('ATH0',3000);await run('ATSP0',3000);
  toast('Адаптер подключён');void identifyVehicle();
  }catch(e){log('Ошибка подключения: '+(e.message||e));toast('Подключение не удалось');if(state.device?.gatt?.connected)state.device.gatt.disconnect();else onDisconnect()}
@@ -113,16 +117,16 @@ function get(pid){return state.values[pid]}
 function setMetric(pid,value){state.values[pid]=value;state.lastData=Date.now();render();}
 async function queryPID(pid){
  const out=await run('01'+pid);
- if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR/i.test(out))return null;
+ if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|\?/i.test(out)){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();return null;}
  const bytes=payload(out,'41',pid);
- if(!bytes||!PIDS[pid])return null;
+ if(!bytes||!PIDS[pid]){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();return null;}
  if(bytes.length<(new Set(['0C','10','23','42','5E','63']).has(pid)?2:1))return null;
  const n=PIDS[pid][2](bytes);
- if(Number.isFinite(n)){setMetric(pid,n);renderSensors();return n}
+ if(Number.isFinite(n)){state.misses[pid]=0;state.unsupported.delete(pid);setMetric(pid,n);renderSensors();return n}
  return null;
 }
 async function probe(){
- if(!state.connected)return;stopStream();state.supported.clear();state.supportChecked=false;$('ecustatus').textContent='Проверка…';
+ if(!state.connected)return;stopStream();state.supported.clear();state.unsupported.clear();state.misses={};state.supportChecked=false;$('ecustatus').textContent='Проверка…';
  try{
   const protocol=await run('ATDP',3500);state.protocol=protocol.trim()||'Не определён';$('protocol').textContent=state.protocol;
   let blocks=[];
@@ -163,7 +167,7 @@ function renderSensors(){
   const supported=state.supportChecked?state.supported.has(pid):null;
   const val=get(pid),row=document.createElement('div');row.className='kv';
   const left=document.createElement('span');left.textContent=label;const right=document.createElement('b');
-  right.textContent=Number.isFinite(val)?format(val,pid==='0C'||pid==='0D'||pid==='05'?0:1)+' '+unit:(supported===false?'Не поддерживается':'—');
+  right.textContent=Number.isFinite(val)?format(val,pid==='0C'||pid==='0D'||pid==='05'?0:1)+' '+unit:(supported===false||state.unsupported.has(pid)?'Нет данных от ЭБУ':'Ожидание');
   row.append(left,right);el.append(row)
  });
 }
@@ -181,17 +185,29 @@ function drawChart(){
 }
 function stopStream(){state.stream=false;state.streamToken++;render()}
 async function startStream(){
- if(!state.connected)return;stopStream();
+ if(!state.connected)return;
+ stopStream();
  if(state.supportChecked&&!COMMANDS.some(pid=>state.supported.has(pid))){toast('ЭБУ не сообщил поддерживаемых датчиков');return}
- state.stream=true;const token=state.streamToken;
- toast('Мониторинг запущен');render();
+ state.stream=true;
+ const token=state.streamToken;
+ let fastIndex=0,slowIndex=0,cycle=0;
+ toast('Быстрый мониторинг запущен');render();
  while(state.stream&&state.connected&&token===state.streamToken){
-  const pid=COMMANDS[state.streamIndex++%COMMANDS.length];
-  if(state.supportChecked&&!state.supported.has(pid)){await new Promise(r=>setTimeout(r,90));continue;}
-  try{await queryPID(pid);sample()}catch(e){log('PID '+pid+': '+e.message);if(!state.connected)break}
-  await new Promise(r=>setTimeout(r,130));
+  // Fast dashboard sensors receive most requests; one background PID every 8 requests.
+  const slow=cycle++%8===7;
+  const ids=slow?SLOW_PIDS:FAST_PIDS;
+  const candidates=ids.filter(pid=>(!state.supportChecked||state.supported.has(pid))&&!state.unsupported.has(pid));
+  if(!candidates.length){
+   if(!slow&&!SLOW_PIDS.some(pid=>(!state.supportChecked||state.supported.has(pid))&&!state.unsupported.has(pid))){log('Нет доступных PID для опроса');break}
+   await new Promise(r=>setTimeout(r,60));continue;
+  }
+  const pid=candidates[slow?(slowIndex++%candidates.length):(fastIndex++%candidates.length)];
+  try{await queryPID(pid);if(token!==state.streamToken)break;sample()}
+  catch(e){if(token!==state.streamToken||!state.connected)break;log('PID '+pid+': '+e.message);state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid)}
+  // Avoid a fixed 130ms delay after EVERY command: the BLE/ECU response already throttles polling.
+  await new Promise(r=>setTimeout(r,15));
  }
- state.stream=false;render()
+ if(token===state.streamToken){state.stream=false;render()}
 }
 function decodeDtc(a,b){
  const families=['P','C','B','U'];const f=families[(a>>6)&3];
