@@ -63,7 +63,7 @@ async function connect(){
  if(!w||!r)throw Error('Не найдены характеристики записи/уведомлений');
  state.tx=w;state.rx=r;await r.startNotifications();r.addEventListener('characteristicvaluechanged',onNotify);
  $('device').textContent=dev.name||'OBDII';$('bleprofile').textContent=short(chosen.s.uuid)+' · '+short(w.uuid)+' / '+short(r.uuid);
- setConnection(true);log('Подключено. BLE '+$('bleprofile').textContent);
+ state.supported.clear();state.supportChecked=false;state.values={};state.history=[];state.dtcs=[];renderDTC();renderSensors();render();setConnection(true);log('Подключено. BLE '+$('bleprofile').textContent);
  await run('ATI',4000);await run('ATE0',3000);await run('ATL0',3000);await run('ATS0',3000);await run('ATH0',3000);await run('ATSP0',3000);
  toast('Адаптер подключён');
  }catch(e){log('Ошибка подключения: '+(e.message||e));toast('Подключение не удалось');if(state.device?.gatt?.connected)state.device.gatt.disconnect();else onDisconnect()}
@@ -185,7 +185,7 @@ async function startStream(){
  toast('Мониторинг запущен');render();
  while(state.stream&&state.connected&&token===state.streamToken){
   const pid=COMMANDS[state.streamIndex++%COMMANDS.length];
-  if(state.supportChecked&&!state.supported.has(pid))continue;
+  if(state.supportChecked&&!state.supported.has(pid)){await new Promise(r=>setTimeout(r,90));continue;}
   try{await queryPID(pid);sample()}catch(e){log('PID '+pid+': '+e.message);if(!state.connected)break}
   await new Promise(r=>setTimeout(r,130));
  }
