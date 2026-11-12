@@ -71,3 +71,45 @@ body:has(#page-sport.active)>header,body:has(#page-sport.active)>nav{display:non
 @media(max-height:700px){.sport-compact{gap:5px}.sport-top{min-height:37px}.sport-heading{font-size:19px}.sport-main{max-height:30vh;padding:6px}.sport-metrics{gap:5px;max-height:36vh}.sport-tile{padding:5px 7px}.sport-tile b{font-size:clamp(19px,6vw,29px);margin:2px 0}.sport-bottom{min-height:37px;padding:4px 7px}.sport-actions button{min-height:27px}}
 @media(max-height:550px){.sport-main{max-height:29vh}.sport-top{min-height:30px}.sport-metrics{max-height:35vh}.sport-tile span{font-size:8px}.sport-tile b{font-size:20px}.boost-main{font-size:32px}.boost-source{display:none}}
 @media(min-width:700px){#page-sport .ring{height:min(22vh,190px);width:min(22vh,190px)}.sport-main{max-height:32vh}}
+
+
+/* Premium Sport cockpit v9 */
+body:has(#page-sport.active){padding:0 10px;max-width:850px;background:radial-gradient(ellipse at 50% 0,#192a49 0,#090f1d 60%);overflow:hidden}
+body:has(#page-sport.active)>header,body:has(#page-sport.active)>nav{display:none}
+#page-sport.active{display:block;height:100dvh;min-height:0;overflow:hidden}
+.cockpit{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(140px,2.6fr) minmax(145px,2.5fr) minmax(72px,1fr) auto;gap:7px;padding:calc(env(safe-area-inset-top) + 8px) 0 calc(env(safe-area-inset-bottom) + 7px)}
+.cockpit-head{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:42px}
+.cockpit-overline{font-size:9px;color:#8daaf2;letter-spacing:1.4px;font-weight:800;white-space:nowrap}
+.thinbar{width:11px;height:3px;background:#61a0ff;display:inline-block;vertical-align:middle;border-radius:2px}
+.cockpit-title{font-size:clamp(21px,5vw,32px);font-weight:950;letter-spacing:-1px;line-height:1.15}.cockpit-title span{color:#6b92fc}
+.cockpit-controls{display:flex;align-items:center;gap:8px}.cockpit-gear{border:1px solid #375477;background:#253757;border-radius:10px;padding:6px;font-size:18px;min-height:34px;min-width:35px}
+.cockpit-hero{display:grid;grid-template-columns:43% 57%;min-height:0;overflow:hidden;padding:10px 7px;border:1px solid #38577d;border-radius:17px;background:radial-gradient(ellipse at 50% 0,#1d355e,#111c31 66%,#0c1527);box-shadow:inset 0 1px #6080b133,0 10px 35px #0004}
+.rpm-side{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between}
+.rpm-caption{font-size:9px;color:#95b0da;white-space:nowrap;text-align:center;letter-spacing:.5px}.rpm-caption small{display:block;font-size:9px;color:#688bbf;margin-top:2px}
+#page-sport .ring{height:min(32vw,23dvh,190px);width:min(32vw,23dvh,190px);max-height:100%;max-width:100%;margin:0;aspect-ratio:1;box-shadow:0 0 23px #2b76ff33;background:conic-gradient(from 215deg,#2ce7c5 0deg,#5d8bff var(--angle,0deg),#2f425e var(--angle,0deg) 270deg,transparent 270deg 360deg)}
+#page-sport .ring:before{inset:9px;box-shadow:inset 0 0 12px #0006}
+#page-sport .ring .number{font-size:clamp(26px,7vw,49px);font-weight:950;letter-spacing:-2px}
+.rpm-unit{font-size:10px;color:#9dafc9;letter-spacing:1px}.rpm-bottom{width:100%;display:flex;justify-content:space-around;color:#7a91ae;font-size:8px}.rpm-marker b{color:#cfdeff}
+.boost-side{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:3px}
+.boost-caption{color:#80f0d5;letter-spacing:1px;font-size:10px;font-weight:850;white-space:nowrap}.boost-asterisk{font-size:16px}
+.boost-reading{display:flex;align-items:baseline;gap:3px;line-height:1;white-space:nowrap}.boost-reading>span{font-weight:950;letter-spacing:-2px;font-size:clamp(29px,8.8vw,62px);font-variant-numeric:tabular-nums}.boost-reading small{font-size:11px;color:#9bc6c6}
+.boost-sub{font-size:9px;color:#95a5bd}#boost-label{color:#64a8fa;font-weight:750}
+.boost-meter{width:92%;height:9px;background:#293e5b;border-radius:40px;overflow:hidden;margin-top:5px}#boost-fill{height:100%;width:0;background:linear-gradient(90deg,#27e8b6,#39b0ff,#8875f9);transition:width .13s linear}
+.boost-scale{display:flex;width:94%;justify-content:space-between;color:#7892b4;font-size:9px}
+#boost-source{font-size:9px;color:#92a6c0;text-align:center;line-height:1.2;max-height:27px;overflow:hidden}
+.cockpit-cards{min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:6px}
+.dash-cell{border:1px solid #314766;background:linear-gradient(145deg,#1c2d47,#111a2c);border-radius:12px;min-width:0;min-height:0;padding:7px 7px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.dash-name{font-size:8px;color:#a5bad9;letter-spacing:.5px;font-weight:800;white-space:nowrap}.dash-indicator{display:inline-block;width:5px;height:5px;background:#7f9aff;border-radius:50%;margin-right:2px;vertical-align:middle}.dash-indicator.cyan{background:#26dbc3}.dash-indicator.orange{background:#f8aa56}
+.dash-value{font-size:clamp(19px,5vw,31px);font-weight:900;letter-spacing:-1px;line-height:1.17;font-variant-numeric:tabular-nums;margin-top:5px;white-space:nowrap}
+.dash-unit{font-size:8px;color:#8ca3c5;letter-spacing:.2px}.dash-track{height:3px;background:#2b3d58;border-radius:20px;margin-top:6px;overflow:hidden}.dash-track>div{height:100%;width:0%;background:#73a3ff;border-radius:20px;transition:width .15s}
+.voltage-cell{grid-column:3 / span 2}.voltage-cell .dash-value{color:#6ee8c4}
+.cockpit-graphs{min-height:0;border:1px solid #2e4666;background:#0d1728;border-radius:13px;display:flex;flex-direction:column;padding:7px 10px;gap:4px}
+.graph-top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:9px;color:#a9c3f7;font-weight:850;white-space:nowrap}.graph-top small{color:#6a83a8;margin-left:6px}.graph-top #sport-freshness{font-size:9px;color:#91a9c4;font-weight:500;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.graph-pulse{display:inline-block;background:#2ee5af;width:6px;height:6px;border-radius:50%;margin-right:3px;box-shadow:0 0 9px #1edaac}
+#page-sport #graph{width:100%;height:100%;flex:1;min-height:25px;display:block;border:0;background:transparent}
+.graph-legend{display:flex;gap:10px;font-size:8px;color:#9aacca}.graph-legend i{display:inline-block;width:11px;height:3px;vertical-align:middle;margin-right:3px}.legend-blue{background:#5f9aff}.legend-green{background:#33e3b1}.graph-disclaimer{margin-left:auto;color:#6d83a8}
+.cockpit-footer{border:1px solid #314967;border-radius:12px;background:#111e32;display:flex;justify-content:space-between;align-items:center;padding:6px 8px;gap:6px;min-height:40px}
+#sport-device{font-size:9px;color:#91a9c8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cockpit-footer>div{display:flex;gap:5px;flex-shrink:0}.cockpit-footer button{font-size:10px;min-height:30px;padding:6px 9px;border-radius:8px}.sport-power{background:#315982}.sport-aux{display:none!important}
+@media(max-width:390px){.cockpit-overline{font-size:8px}.cockpit-cards{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr))}.voltage-cell{grid-column:auto}.dash-value{font-size:clamp(18px,6vw,26px)}.dash-name{font-size:8px}}
+@media(max-height:730px){.cockpit{grid-template-rows:auto minmax(117px,2.4fr) minmax(122px,2.2fr) minmax(55px,.8fr) auto;gap:5px}.cockpit-hero{padding:6px}.dash-cell{padding:5px}.dash-track{margin-top:3px}.dash-value{margin-top:2px}.boost-source{display:none}}
+@media(max-height:570px){.cockpit-overline{display:none}.rpm-caption,.rpm-bottom{display:none}.cockpit{grid-template-rows:auto minmax(100px,2.1fr) minmax(110px,2fr) minmax(40px,.65fr) auto}.dash-unit,.dash-track{display:none}.graph-disclaimer{display:none}}
