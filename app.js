@@ -57,6 +57,7 @@ function page(name){
  document.querySelectorAll('nav button').forEach(el=>el.classList.toggle('active',el.dataset.page===name));
  window.scrollTo({top:0,behavior:'instant'});
  if(name==='sport'){drawChart();if(state.connected&&!wasSport)void startStream();}
+ if(name==='sensors')renderSensors();
  else if(wasSport&&state.stream)stopStream();
 }
 document.querySelectorAll('nav button').forEach(el=>el.addEventListener('click',()=>page(el.dataset.page)));
@@ -126,15 +127,15 @@ function payload(raw,mode,pid){
  return i<0?null:bytes.slice(i+2);
 }
 function get(pid){return state.values[pid]}
-function setMetric(pid,value){state.values[pid]=value;state.lastData=Date.now();render();}
+function setMetric(pid,value){state.values[pid]=value;state.lastData=Date.now();render();if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();}
 async function queryPID(pid){
  const out=await run('01'+pid);
- if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|\?/i.test(out)){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();render();return null;}
+ if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|\?/i.test(out)){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();render();return null;}
  const bytes=payload(out,'41',pid);
  if(!bytes||!PIDS[pid]){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);renderSensors();render();return null;}
  if(bytes.length<(new Set(['0C','10','23','42','5E','63']).has(pid)?2:1))return null;
  const n=PIDS[pid][2](bytes);
- if(Number.isFinite(n)){state.misses[pid]=0;state.unsupported.delete(pid);setMetric(pid,n);renderSensors();return n}
+ if(Number.isFinite(n)){state.misses[pid]=0;state.unsupported.delete(pid);setMetric(pid,n);return n}
  return null;
 }
 async function probe(){
