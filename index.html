@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d17"><meta name="description" content="VAG Diagnostic — Audi OBD-II BLE диагностика"><title>VAG Diagnostic Pro</title><link rel="stylesheet" href="./style.css?v=8"></head>
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d17"><meta name="description" content="VAG Diagnostic — Audi OBD-II BLE диагностика"><title>VAG Diagnostic Pro</title><link rel="stylesheet" href="./style.css?v=9"></head>
 <body>
 <header><div><div class="brand">VAG · DIAGNOSTICS</div><h1>VAG Diagnostic <span style="color:#789aff">Pro</span></h1></div><div class="status" id="connection">● Не подключён</div></header>
 <section class="page" id="page-home">
@@ -51,6 +51,7 @@
    <div class="dash-cell"><div class="dash-name"><span class="dash-indicator"></span> INTAKE</div><div class="dash-value" id="sport-intake">—</div><div class="dash-unit">°C · AIR</div><div class="dash-track"><div id="intake-fill"></div></div></div>
    <div class="dash-cell"><div class="dash-name"><span class="dash-indicator cyan"></span> COOLANT</div><div class="dash-value" id="sport-coolant">—</div><div class="dash-unit">°C · ENGINE</div><div class="dash-track"><div id="coolant-fill"></div></div></div>
    <div class="dash-cell"><div class="dash-name"><span class="dash-indicator orange"></span> INTAKE MAP</div><div class="dash-value" id="sport-map">—</div><div class="dash-unit">BAR ABS</div><div class="dash-track"><div id="map-fill"></div></div></div>
+   <div class="dash-cell voltage-cell"><div class="dash-name"><span class="dash-indicator cyan"></span> VOLTAGE</div><div class="dash-value" id="sport-voltage">—</div><div class="dash-unit">V · OBD ADAPTER</div><div class="dash-track"><div id="voltage-fill"></div></div></div>
  </div>
  <div class="cockpit-graphs">
   <div class="graph-top"><div><span class="graph-pulse"></span> LIVE SIGNAL <small>RPM / BOOST</small></div><span id="sport-freshness">Нет данных ЭБУ</span></div>
@@ -83,4 +84,4 @@
 <div class="card"><div class="split"><h3>Технический журнал</h3><span class="pill">BLE / ELM</span></div><div class="log" id="log" aria-live="polite"></div><div class="btnrow"><button id="copylog" class="secondary">Копировать журнал</button><button id="clearlog" class="outline">Очистить журнал</button></div></div>
 <div class="notice">Используй диагностику только на стоянке. Не все значения доступны на всех ЭБУ, а адаптеры с надписью «ELM327 v1.5» часто являются клонами. Не предназначено для кодирования, адаптаций и удаления ошибок.</div>
 </section>
-<nav><div class="navinner"><button data-page="home"><span>⌂</span>Главная</button><button class="active" data-page="sport"><span>◉</span>Sport</button><button data-page="errors"><span>⚠</span>Ошибки</button><button data-page="sensors"><span>≋</span>Датчики</button><button data-page="settings"><span>⚙</span>Настройки</button></div></nav><div id="toast"></div><script src="./app.js?v=8"></script></body></html>
+<nav><div class="navinner"><button data-page="home"><span>⌂</span>Главная</button><button class="active" data-page="sport"><span>◉</span>Sport</button><button data-page="errors"><span>⚠</span>Ошибки</button><button data-page="sensors"><span>≋</span>Датчики</button><button data-page="settings"><span>⚙</span>Настройки</button></div></nav><div id="toast"></div><script src="./app.js?v=9"></script></body></html>
