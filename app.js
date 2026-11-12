@@ -104,12 +104,10 @@ function hexLines(raw){
  return raw.toUpperCase().split(/[\r\n]+/).map(x=>x.trim()).filter(x=>x&&!/^(SEARCHING|BUS INIT|OK|\?|NO DATA|STOPPED|UNABLE|ERROR|AT|ELM327)/.test(x)&&!/^(01[A-F0-9]{2}|03|07|0A)$/.test(x)).map(x=>x.replace(/[^0-9A-F]/g,'')).filter(x=>x.length>=4);
 }
 function payload(raw,mode,pid){
- const key=(mode+pid).toUpperCase();
- for(let line of hexLines(raw)){
-  const idx=line.indexOf(key);
-  if(idx>=0&&idx%2===0){const p=line.slice(idx+key.length).match(/../g)||[];return p.map(x=>parseInt(x,16))}
- }
- return null;
+ const bytes=responseBytes(raw,mode);
+ const svc=parseInt(mode,16),requested=parseInt(pid,16);
+ const i=bytes.findIndex((b,k)=>b===svc&&bytes[k+1]===requested);
+ return i<0?null:bytes.slice(i+2);
 }
 function get(pid){return state.values[pid]}
 function setMetric(pid,value){state.values[pid]=value;state.lastData=Date.now();render();}
@@ -183,7 +181,9 @@ function drawChart(){
 }
 function stopStream(){state.stream=false;state.streamToken++;render()}
 async function startStream(){
- if(!state.connected)return;stopStream();state.stream=true;const token=state.streamToken;
+ if(!state.connected)return;stopStream();
+ if(state.supportChecked&&!COMMANDS.some(pid=>state.supported.has(pid))){toast('ЭБУ не сообщил поддерживаемых датчиков');return}
+ state.stream=true;const token=state.streamToken;
  toast('Мониторинг запущен');render();
  while(state.stream&&state.connected&&token===state.streamToken){
   const pid=COMMANDS[state.streamIndex++%COMMANDS.length];
