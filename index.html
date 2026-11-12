@@ -1,7 +1,7 @@
-<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d17"><meta name="description" content="VAG Diagnostic — Audi OBD-II BLE диагностика"><title>VAG Diagnostic Pro</title><link rel="stylesheet" href="./style.css?v=4"></head>
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d17"><meta name="description" content="VAG Diagnostic — Audi OBD-II BLE диагностика"><title>VAG Diagnostic Pro</title><link rel="stylesheet" href="./style.css?v=7"></head>
 <body>
 <header><div><div class="brand">VAG · DIAGNOSTICS</div><h1>VAG Diagnostic <span style="color:#789aff">Pro</span></h1></div><div class="status" id="connection">● Не подключён</div></header>
-<section class="page active" id="page-home">
+<section class="page" id="page-home">
 <div class="heading">ГЛАВНАЯ · СОСТОЯНИЕ АВТОМОБИЛЯ</div>
 <div class="card hero"><div class="split"><div><div class="label">МОЙ АВТОМОБИЛЬ</div><h2 style="margin:8px 0">Audi · VAG</h2><div class="small muted" id="ecustatus">ЭБУ ещё не проверен</div></div><span class="pill">BLE OBD-II</span></div></div>
 <div class="card vehicle-card"><div class="split"><div><div class="label">АВТОМОБИЛЬ · ИДЕНТИФИКАЦИЯ</div><h2 style="margin:7px 0">Данные из ЭБУ</h2></div><span class="pill" id="vinstatus">Не проверено</span></div>
@@ -23,24 +23,36 @@
 <div class="card"><h3>Быстрые действия</h3><div class="btnrow"><button data-needs-ble id="probe" disabled>Проверка ЭБУ</button><button class="secondary" data-needs-ble id="identify" disabled>Информация</button><button data-needs-ble id="start" disabled>Мониторинг ▶</button><button class="secondary" data-needs-ble id="stop" disabled>Остановить ■</button></div><div class="kv"><span class="muted">Поддерживаемые PID</span><b id="pidcount">—</b></div><div class="kv"><span class="muted">Мониторинг</span><b id="streamstate">Остановлен</b></div></div>
 <div class="notice">Данные показываются только после ответа автомобиля. Дополнительные VAG-блоки (ABS, Airbag, приборка) этим стандартным ELM327-сканированием не охватываются.</div>
 </section>
-<section class="page" id="page-sport">
-<div class="heading">SPORT MODE · LIVE TELEMETRY</div>
-<div class="sport"><div class="split"><span class="pill good">LIVE TELEMETRY</span><span class="small muted">VAG SPORT</span></div>
-<div class="ring" id="ring"><div class="ring-content"><div class="label">ENGINE SPEED</div><div class="number" id="sport-rpm">—</div><span class="unit">RPM</span></div></div>
-<div class="split" style="justify-content:center;gap:30px"><div style="text-align:center"><div class="label">SPEED</div><div class="value"><span id="sport-speed">—</span><span class="unit">км/ч</span></div></div><div style="text-align:center"><div class="label">BOOST</div><div class="value" style="font-size:23px" id="sport-boost">—</div></div></div>
+<section class="page active" id="page-sport">
+<div class="sport-compact">
+ <div class="sport-top"><div><div class="sport-eyebrow">AUDI · LIVE COCKPIT</div><div class="sport-heading">SPORT <span>MODE</span></div></div><div class="sport-top-right"><span id="sport-live" class="sport-indicator">● OFFLINE</span><button type="button" class="sport-menu" id="sport-menu">⚙ Меню</button></div></div>
+ <div class="sport-main">
+  <div class="sport-rpm">
+   <div class="ring" id="ring"><div class="ring-content"><div class="sport-rpm-label">ENGINE RPM</div><div class="number" id="sport-rpm">—</div><div class="sport-rpm-unit">об/мин</div></div></div>
+  </div>
+  <div class="sport-primary">
+    <div class="boost-name">TURBO BOOST</div><div class="boost-main" id="sport-boost">—</div><div class="boost-unit">bar · избыточное</div>
+    <div class="boost-source" id="boost-source">Ожидание MAP</div>
+    <button class="boost-zero" id="zeroBoost" data-needs-ble disabled>◎ Калибровка 0</button>
+  </div>
+ </div>
+ <div class="sport-metrics">
+  <div class="sport-tile"><span>СКОРОСТЬ</span><b id="sport-speed">—</b><small>км/ч</small></div>
+  <div class="sport-tile"><span>ВОЗДУХ MAF</span><b id="sport-maf">—</b><small>г/с</small></div>
+  <div class="sport-tile"><span>НАГРУЗКА</span><b id="sport-load">—</b><small>%</small></div>
+  <div class="sport-tile"><span>ТЕМП. ВПУСКА</span><b id="sport-intake">—</b><small>°C</small></div>
+  <div class="sport-tile"><span>ОХЛАЖДЕНИЕ</span><b id="sport-coolant">—</b><small>°C</small></div>
+  <div class="sport-tile"><span>ДАВЛЕНИЕ MAP</span><b id="sport-map">—</b><small>bar abs</small></div>
+ </div>
+ <div class="sport-bottom">
+   <span id="sport-freshness">Нет данных ЭБУ</span>
+   <div class="sport-actions"><button id="sport-connect" class="sport-mini-action">Подключить</button><button id="start-sport" data-needs-ble disabled>▶ LIVE</button><button id="stop-sport" class="secondary" data-needs-ble disabled>■</button></div>
+ </div>
+ <div class="sport-aux" hidden>
+ <span id="sport-fuel"></span><span id="sport-rail"></span><span id="sport-moment"></span><span id="sport-kw"></span><span id="supply"></span>
+ <canvas id="graph"></canvas>
+ </div>
 </div>
-<div class="sport-grid">
-<div class="card"><div class="label">MAF · воздух</div><div class="value" id="sport-maf">—</div><div class="unit">г/с</div></div>
-<div class="card"><div class="label">Расход</div><div class="value" id="sport-fuel">—</div><div class="unit">л/ч</div></div>
-<div class="card"><div class="label">Rail</div><div class="value" id="sport-rail">—</div><div class="unit">bar</div></div>
-<div class="card"><div class="label">Нагрузка</div><div class="value" id="sport-load">—</div><div class="unit">%</div></div>
-<div class="card"><div class="label">Момент*</div><div class="value" style="font-size:21px" id="sport-moment">—</div><div class="unit">Если PID 62/63</div></div>
-<div class="card"><div class="label">Мощность*</div><div class="value" style="font-size:21px" id="sport-kw">—</div><div class="unit">Оценка по моменту</div></div>
-<div class="card"><div class="label">Темп. впуска</div><div class="value" id="sport-intake">—</div><div class="unit">°C</div></div>
-<div class="card"><div class="label">Напряжение ECU</div><div class="value" id="supply">—</div><div class="unit">В</div></div>
-</div>
-<div class="card"><div class="split"><h3>LIVE GRAPH</h3><span class="tiny">RPM · MAP · SPEED</span></div><canvas class="plot" id="graph"></canvas><p class="small">Синий — обороты, зелёный — абсолютное давление MAP, оранжевый — скорость. Каждая линия имеет собственный масштаб.</p><div class="btnrow"><button id="start-sport" data-needs-ble disabled>▶ Начать запись</button><button id="stop-sport" class="secondary" data-needs-ble disabled>■ Остановить</button></div></div>
-<div class="notice">* Момент и кВт — расчёт по стандартным PID 62/63 и оборотам, не замер на стенде. Наддув «относительный» только при доступности MAP и BARO; иначе показывается абсолютное давление. Коррекции форсунок и запрошенный наддув требуют отдельных VAG-параметров.</div>
 </section>
 <section class="page" id="page-errors">
 <div class="heading">DIAGNOSTICS · ENGINE DTC</div>
@@ -58,4 +70,4 @@
 <div class="card"><div class="split"><h3>Технический журнал</h3><span class="pill">BLE / ELM</span></div><div class="log" id="log" aria-live="polite"></div><div class="btnrow"><button id="copylog" class="secondary">Копировать журнал</button><button id="clearlog" class="outline">Очистить журнал</button></div></div>
 <div class="notice">Используй диагностику только на стоянке. Не все значения доступны на всех ЭБУ, а адаптеры с надписью «ELM327 v1.5» часто являются клонами. Не предназначено для кодирования, адаптаций и удаления ошибок.</div>
 </section>
-<nav><div class="navinner"><button class="active" data-page="home"><span>⌂</span>Главная</button><button data-page="sport"><span>◉</span>Sport</button><button data-page="errors"><span>⚠</span>Ошибки</button><button data-page="sensors"><span>≋</span>Датчики</button><button data-page="settings"><span>⚙</span>Настройки</button></div></nav><div id="toast"></div><script src="./app.js?v=6"></script></body></html>
+<nav><div class="navinner"><button data-page="home"><span>⌂</span>Главная</button><button class="active" data-page="sport"><span>◉</span>Sport</button><button data-page="errors"><span>⚠</span>Ошибки</button><button data-page="sensors"><span>≋</span>Датчики</button><button data-page="settings"><span>⚙</span>Настройки</button></div></nav><div id="toast"></div><script src="./app.js?v=7"></script></body></html>
