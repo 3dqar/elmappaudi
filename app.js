@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const UUIDS=['0000fff0-0000-1000-8000-00805f9b34fb','0000ffe0-0000-1000-8000-00805f9b34fb','0000ffe5-0000-1000-8000-00805f9b34fb','0000ffb0-0000-1000-8000-00805f9b34fb','000018f0-0000-1000-8000-00805f9b34fb','6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
-const state={device:null,server:null,tx:null,rx:null,connected:false,pending:null,buffer:'',queue:Promise.resolve(),stream:false,streamToken:0,streamIndex:0,values:{},supported:new Set(),supportChecked:false,dtcs:[],protocol:'—',history:[],lastData:0,unsupported:new Set(),misses:{},pollCount:0,sportMode:true,lastDraw:0,ambientRef:null,ambientKind:'estimated',pidTime:{},voltage:null,voltageAt:0,vin:null,ecuName:null,calId:null,generation:0,profile:'Audi A4 B7 · 2.0 TDI'};
+const state={device:null,server:null,tx:null,rx:null,connected:false,pending:null,buffer:'',queue:Promise.resolve(),stream:false,streamToken:0,streamIndex:0,values:{},supported:new Set(),supportChecked:false,dtcs:[],protocol:'—',history:[],lastData:0,unsupported:new Set(),misses:{},pollCount:0,sportMode:true,lastDraw:0,ambientRef:null,ambientKind:'estimated',pidTime:{},voltage:null,voltageAt:0,rec:null,records:[],vin:null,ecuName:null,calId:null,generation:0,profile:'Audi A4 B7 · 2.0 TDI'};
 const PIDS={
 '04':['Нагрузка двигателя','%',a=>a[0]*100/255],
 '05':['Температура ОЖ','°C',a=>a[0]-40],
@@ -49,7 +49,7 @@ P0128:['Температура охлаждения ниже нормы','Тер
 const log=(s)=>{const t=new Date().toLocaleTimeString('ru-RU');$('log').textContent+='['+t+'] '+s+'\n';$('log').scrollTop=$('log').scrollHeight};
 const toast=(s)=>{const e=$('toast');e.textContent=s;e.style.display='block';setTimeout(()=>{if(e.textContent===s)e.style.display='none'},2700)};
 const short=u=>String(u).replace('-0000-1000-8000-00805f9b34fb','').slice(0,13);
-function setConnection(ok){state.connected=ok;$('connection').textContent=ok?'● Подключён':'● Не подключён';$('connection').className='status'+(ok?' connected':'');document.querySelectorAll('[data-needs-ble]').forEach(el=>el.disabled=!ok);$('connect').disabled=ok;$('disconnect').disabled=!ok}
+function setConnection(ok){state.connected=ok;const recBtn=$('rec-toggle');if(recBtn)recBtn.disabled=!ok&&!state.rec;$('connection').textContent=ok?'● Подключён':'● Не подключён';$('connection').className='status'+(ok?' connected':'');document.querySelectorAll('[data-needs-ble]').forEach(el=>el.disabled=!ok);$('connect').disabled=ok;$('disconnect').disabled=!ok}
 function page(name){
  const wasSport=state.sportMode;
  state.sportMode=name==='sport';
@@ -60,7 +60,7 @@ function page(name){
  else {if(wasSport&&state.stream)stopStream();if(name==='sensors')renderSensors();}
 }
 document.querySelectorAll('nav button').forEach(el=>el.addEventListener('click',()=>page(el.dataset.page)));
-function onDisconnect(){state.generation++;stopStream();state.ambientRef=null;state.pidTime={};state.voltage=null;state.voltageAt=0;if(state.pending){clearTimeout(state.pending.timer);state.pending.reject(Error('BLE отключился'));state.pending=null}state.server=null;state.tx=null;state.rx=null;state.vin=null;state.ecuName=null;state.calId=null;state.values={};state.supported.clear();state.unsupported.clear();state.misses={};state.supportChecked=false;setConnection(false);$('device').textContent='—';$('bleprofile').textContent='—';$('ecustatus').textContent='ЭБУ ещё не проверен';$('pidcount').textContent='—';$('scanstatus').textContent='Ожидание подключения';updateIdentity();render();renderSensors();log('Соединение разорвано');}
+function onDisconnect(){finishRecord('Отключение');state.generation++;stopStream();state.ambientRef=null;state.pidTime={};state.voltage=null;state.voltageAt=0;if(state.pending){clearTimeout(state.pending.timer);state.pending.reject(Error('BLE отключился'));state.pending=null}state.server=null;state.tx=null;state.rx=null;state.vin=null;state.ecuName=null;state.calId=null;state.values={};state.supported.clear();state.unsupported.clear();state.misses={};state.supportChecked=false;setConnection(false);$('device').textContent='—';$('bleprofile').textContent='—';$('ecustatus').textContent='ЭБУ ещё не проверен';$('pidcount').textContent='—';$('scanstatus').textContent='Ожидание подключения';updateIdentity();render();renderSensors();log('Соединение разорвано');}
 async function connect(){
  if(!navigator.bluetooth){toast('Используй Bluefy: Web Bluetooth недоступен');return}
  try{
@@ -126,7 +126,7 @@ function payload(raw,mode,pid){
  return i<0?null:bytes.slice(i+2);
 }
 function get(pid){return state.values[pid]}
-function setMetric(pid,value){state.values[pid]=value;state.pidTime[pid]=Date.now();state.lastData=Date.now();render();if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();}
+function setMetric(pid,value){captureRecord(pid,value);state.values[pid]=value;state.pidTime[pid]=Date.now();state.lastData=Date.now();render();if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();}
 async function queryPID(pid){
  const out=await run('01'+pid);
  if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|\?/i.test(out)){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();render();return null;}
@@ -267,7 +267,7 @@ async function startStream(){
      try{
        const v=await run('ATRV',3500);
        const m=v.match(/(\d{1,2}(?:\.\d{1,2})?)\s*V/i);
-       if(m){const n=Number(m[1]);if(n>=8&&n<=19){state.voltage=n;render()}}
+       if(m){const n=Number(m[1]);if(n>=8&&n<=19){state.voltage=n;captureRecord('voltage',n);render()}}
      }catch(e){log('Voltage: '+e.message)}
    }
    const slow=cycle++%(sport?12:8)===(sport?11:7);
@@ -427,6 +427,114 @@ function exportReport(){
  lines.push('','Значения:');for(const [pid,n] of Object.entries(state.values))lines.push(PIDS[pid][0]+': '+n+' '+PIDS[pid][1]);
  const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='VAG-report-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+const RECORDS_KEY='vag-sport-records-v1';
+const RECORD_METRICS={
+ '0C':{label:'MAX RPM',unit:'об/мин',dir:'max',digits:0},
+ '0D':{label:'MAX SPEED',unit:'км/ч',dir:'max',digits:0},
+ 'boost':{label:'MAX BOOST',unit:'bar',dir:'max',digits:2},
+ '0B':{label:'MAX MAP ABS',unit:'bar',dir:'max',digits:2},
+ '10':{label:'MAX MAF',unit:'г/с',dir:'max',digits:1},
+ '04':{label:'MAX LOAD',unit:'%',dir:'max',digits:0},
+ '0F':{label:'MAX INTAKE',unit:'°C',dir:'max',digits:0},
+ '05':{label:'MAX COOLANT',unit:'°C',dir:'max',digits:0},
+ 'voltage':{label:'MIN VOLTAGE',unit:'В',dir:'min',digits:2}
+};
+function loadRecords(){
+ try{const a=JSON.parse(localStorage.getItem(RECORDS_KEY)||'[]');state.records=Array.isArray(a)?a.slice(0,25).filter(x=>x&&x.id&&x.peaks):[]}
+ catch(e){state.records=[];log('История недоступна: '+e.message)}
+ refreshRecStatus();
+}
+function persistRecords(){
+ try{localStorage.setItem(RECORDS_KEY,JSON.stringify(state.records.slice(0,25)))}
+ catch(e){toast('Не удалось сохранить историю в Bluefy');log('Сохранение: '+e.message)}
+}
+function fmtElapsed(ms){
+ const sec=Math.floor(Math.max(0,ms)/1000);
+ return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+}
+function refreshRecStatus(){
+ const active=!!state.rec;
+ const btn=$('rec-toggle');if(!btn)return;
+ btn.textContent=active?'■ STOP':'⏺ REC';
+ btn.classList.toggle('recording',active);
+ btn.disabled=!active&&!state.connected;
+ $('rec-state').textContent=active?'● RECORDING':'ЗАПИСЬ ВЫКЛЮЧЕНА';
+ $('rec-state').classList.toggle('recording',active);
+ $('rec-timer').textContent=active?fmtElapsed(Date.now()-state.rec.started)+' · '+state.rec.samples+' измерений':'00:00 · Сохранение на iPhone';
+ $('rec-count').textContent=String(state.records.length);
+}
+function startRecord(){
+ if(state.rec)return;
+ if(!state.connected){toast('Сначала подключи ELM327');return}
+ state.rec={id:String(Date.now()),started:Date.now(),ended:null,vin:state.vin||null,profile:state.profile,peaks:{},samples:0,boostReference:boostBase().kind,reason:'Вручную'};
+ refreshRecStatus();toast('Запись рекордов началась');
+}
+function captureRecord(key,value){
+ const rec=state.rec;
+ if(!rec||!Number.isFinite(value))return;
+ let v=value,metric=key;
+ if(key==='0B'){
+  // Absolute manifold pressure (kPa) to bar absolute.
+  v=value/100;
+  const base=boostBase();
+  // A boost reading is only usable when its reference is known and documented.
+  captureRecord('boost',Math.max(0,(value-base.kpa)/100));
+ }
+ if(!RECORD_METRICS[metric])return;
+ const now=Date.now();
+ const old=rec.peaks[metric],dir=RECORD_METRICS[metric].dir;
+ if(!old||(dir==='min'?v<old.value:v>old.value))rec.peaks[metric]={value:v,at:now-rec.started};
+ rec.samples++;
+ if(rec.samples%8===0)refreshRecStatus();
+}
+function finishRecord(reason='Вручную'){
+ const rec=state.rec;
+ if(!rec)return;
+ rec.ended=Date.now();rec.reason=reason;
+ state.rec=null;
+ if(rec.samples){
+  state.records.unshift(rec);state.records=state.records.slice(0,25);
+  persistRecords();toast('Заезд сохранён · '+fmtElapsed(rec.ended-rec.started));
+ }else toast('Нет измерений — пустая запись не сохранена');
+ refreshRecStatus();
+}
+function recordButton(){if(state.rec)finishRecord();else startRecord()}
+function el(tag,cls,txt){
+ const node=document.createElement(tag);if(cls)node.className=cls;if(txt!==undefined)node.textContent=txt;return node;
+}
+function renderHistory(){
+ const root=$('records-list');root.replaceChildren();
+ if(!state.records.length){root.append(el('div','records-empty','История пуста. Подключись к машине и нажми ⏺ REC.'));return}
+ state.records.forEach(rec=>{
+  const wrapper=el('details','record-item');
+  const duration=Math.max(0,(rec.ended||rec.started)-rec.started);
+  const title=el('summary','record-summary');
+  title.append(el('span','',new Date(rec.started).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})));
+  title.append(el('b','',fmtElapsed(duration)));
+  const body=el('div','record-content');
+  const metrics=el('div','record-metrics');
+  for(const [key,def] of Object.entries(RECORD_METRICS)){
+    const peak=rec.peaks[key];
+    if(!peak)continue;
+    const tile=el('div','record-metric');
+    tile.append(el('span','',def.label));
+    tile.append(el('strong','',Number(peak.value).toFixed(def.digits)+' '+def.unit));
+    tile.append(el('small','',fmtElapsed(peak.at)+' от начала'));
+    metrics.append(tile);
+  }
+  body.append(metrics);
+  body.append(el('p','record-foot','Измерений: '+rec.samples+' · Наддув: '+(rec.boostReference||'неизвестно')+(rec.reason==='Отключение'?' · связь прервалась':'')));
+  const actions=el('div','record-actions');
+  const copy=el('button','','Копировать');
+  copy.onclick=async()=>{const text=[new Date(rec.started).toLocaleString('ru-RU'),fmtElapsed(duration),...Object.entries(RECORD_METRICS).filter(([k])=>rec.peaks[k]).map(([k,d])=>d.label+': '+rec.peaks[k].value.toFixed(d.digits)+' '+d.unit)].join('\n');try{await navigator.clipboard.writeText(text);toast('Результаты скопированы')}catch(e){toast('Не удалось скопировать')}};
+  const remove=el('button','record-delete','Удалить');
+  remove.onclick=()=>{if(!confirm('Удалить эту запись?'))return;state.records=state.records.filter(x=>x.id!==rec.id);persistRecords();refreshRecStatus();renderHistory()};
+  actions.append(copy,remove);body.append(actions);wrapper.append(title,body);root.append(wrapper);
+ });
+}
+function openHistory(){$('records-modal').hidden=false;renderHistory()}
+function closeHistory(){$('records-modal').hidden=true}
 function bind(){
  $('connect').onclick=connect;$('disconnect').onclick=()=>state.device?.gatt?.disconnect();$('readvin').onclick=identifyVehicle;$('copyvin').onclick=async()=>{if(!state.vin)return;try{await navigator.clipboard.writeText(state.vin);toast('VIN скопирован')}catch(e){toast('Копирование не удалось')}};
  $('probe').onclick=probe;$('scan').onclick=scanEngine;$('identify').onclick=identify;
@@ -434,9 +542,11 @@ function bind(){
  $('sport-connect').onclick=()=>state.connected?toast('ELM327 уже подключён'):connect();$('sport-menu').onclick=()=>page('home');$('zeroBoost').onclick=zeroBoost;
  $('export').onclick=exportReport;$('copylog').onclick=async()=>{try{await navigator.clipboard.writeText($('log').textContent);toast('Журнал скопирован')}catch(e){toast('Не получилось скопировать')}};
  $('clearlog').onclick=()=>{$('log').textContent='';log('Журнал очищен')};
+ $('rec-toggle').onclick=recordButton;$('rec-history').onclick=openHistory;$('records-close').onclick=closeHistory;
+ $('records-modal').onclick=e=>{if(e.target===$('records-modal'))closeHistory()};
  $('vehicle').onchange=e=>{state.profile=e.target.value;localStorage.setItem('vag-profile',state.profile)};
  const saved=localStorage.getItem('vag-profile');if(saved){$('vehicle').value=saved;state.profile=saved}
  window.addEventListener('resize',drawChart);
- setConnection(false);updateIdentity();render();renderSensors();renderDTC();page('sport');log('VAG Diagnostic · Pro — готов к подключению')
+ loadRecords();setConnection(false);updateIdentity();render();renderSensors();renderDTC();page('sport');log('VAG Diagnostic · Pro — готов к подключению')
 }
 bind();
