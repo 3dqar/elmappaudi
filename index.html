@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090e19">
+<title>VAG Diagnostic · BLE</title>
+<style>
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#090e19;color:#edf2fd}*{box-sizing:border-box}
+body{margin:0;padding:env(safe-area-inset-top) 16px calc(30px + env(safe-area-inset-bottom));max-width:680px;margin-inline:auto}
+header{padding:28px 0 12px;display:flex;justify-content:space-between;align-items:center}h1{font-size:24px;letter-spacing:-.7px;margin:0}p{color:#9aa8c1;line-height:1.5}
+.brand{font-size:11px;letter-spacing:2px;font-weight:800;color:#7e9eff;margin-bottom:7px}
+.status{display:inline-flex;align-items:center;gap:7px;border:1px solid #2a3853;padding:8px 10px;border-radius:99px;font-size:12px;background:#141f32}
+.dot{width:8px;height:8px;border-radius:50%;background:#f1a442}.ok .dot{background:#31d6a1}.bad .dot{background:#fc727a}
+.panel{background:linear-gradient(145deg,#17233a,#111a2b);border:1px solid #2a3650;border-radius:20px;padding:18px;margin-top:14px}
+h2{font-size:15px;margin:0 0 12px}.small{font-size:13px;color:#a0adc4}.kv{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #293650;padding:10px 0;font-size:13px}.kv:last-child{border:0}.kv span:last-child{text-align:right;word-break:break-all;color:#dfe8fc}
+button{border:0;padding:15px;border-radius:13px;color:white;background:#4a76f6;font-weight:700;font-size:15px;cursor:pointer}button.secondary{background:#293750}button:disabled{opacity:.4}.buttons{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:15px}
+input{width:100%;border-radius:12px;padding:13px;background:#0c1424;border:1px solid #34425a;color:white;font-size:16px}
+.log{background:#070c15;border:1px solid #29344b;padding:12px;border-radius:12px;font:12px/1.65 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;min-height:140px}
+.note{font-size:12px;color:#9eabc4}label{font-size:12px;color:#acb9d0;display:block;margin:4px 0 8px}
+</style>
+</head>
+<body>
+<header><div><div class="brand">VAG · DIAGNOSTICS</div><h1>ELM327 BLE</h1></div><div id="status" class="status"><i class="dot"></i><span id="state">Не подключён</span></div></header>
+<p>Этап 1 — поиск Bluetooth-адаптера и проверка связи. Никаких изменений в автомобиле.</p>
+<section class="panel"><h2>Подключение</h2><div class="kv"><span>Адаптер</span><span id="device">—</span></div><div class="kv"><span>BLE-сервис</span><span id="service">—</span></div><div class="kv"><span>Запись / уведомления</span><span id="chars">—</span></div><div class="buttons"><button id="connect">Найти ELM327</button><button class="secondary" id="disconnect" disabled>Отключить</button></div></section>
+<section class="panel"><h2>Проверка ELM327</h2><p class="small">Включи зажигание и вставь адаптер в OBD2. После подключения нажми «Проверить».</p><div class="buttons"><button id="test" disabled>Проверить (ATI)</button><button class="secondary" id="reset" disabled>Сброс (ATZ)</button></div><div style="margin-top:15px"><label for="cmd">Ручная AT-команда (только чтение информации)</label><input id="cmd" placeholder="Например, ATDP" autocomplete="off" autocapitalize="characters"><button style="width:100%;margin-top:8px" id="send" disabled>Отправить команду</button></div></section>
+<section class="panel"><h2>Журнал</h2><div class="log" id="log" aria-live="polite"></div><div class="buttons"><button class="secondary" id="copy">Скопировать журнал</button><button class="secondary" id="clear">Очистить</button></div></section>
+<p class="note">Работает только в браузере, поддерживающем Web Bluetooth (например, Bluefy), через HTTPS. Не все ELM327 BLE используют одинаковые UUID. Если подключение не удалось — скопируй журнал.</p>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const knownServices=['0000ffe0-0000-1000-8000-00805f9b34fb','0000fff0-0000-1000-8000-00805f9b34fb','0000ffe5-0000-1000-8000-00805f9b34fb','0000ffb0-0000-1000-8000-00805f9b34fb','000018f0-0000-1000-8000-00805f9b34fb','6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
+let device=null,server=null,writeChar=null,readChar=null,busy=false;
+const short=u=>String(u).replace('-0000-1000-8000-00805f9b34fb','').slice(0,16);
+function log(s){const time=new Date().toLocaleTimeString();$('log').textContent+='['+time+'] '+s+'\n';$('log').scrollTop=$('log').scrollHeight;}
+function status(s,kind=''){$('state').textContent=s;$('status').className='status '+kind}
+function controls(connected){$('connect').disabled=connected;$('disconnect').disabled=!connected;$('test').disabled=!connected;$('reset').disabled=!connected;$('send').disabled=!connected}
+function cleanup(){writeChar=null;readChar=null;server=null;controls(false);status('Не подключён');}
+function notify(e){const bytes=new Uint8Array(e.target.value.buffer,e.target.value.byteOffset,e.target.value.byteLength);const txt=new TextDecoder().decode(bytes);log('← '+JSON.stringify(txt));}
+function disconnected(){log('BLE соединение разорвано');cleanup();}
+async function connect(){
+ if(!navigator.bluetooth){log('Этот браузер не поддерживает Web Bluetooth. Открой страницу в Bluefy.');status('Нет Web Bluetooth','bad');return}
+ try {
+ status('Поиск…');log('Открываю список BLE-устройств');
+ device=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:knownServices});
+ $('device').textContent=device.name||'(без названия)';log('Выбран: '+(device.name||'без названия'));
+ device.addEventListener('gattserverdisconnected',disconnected);
+ server=await device.gatt.connect();log('GATT подключён');
+ let found=[];
+ for(const uuid of knownServices){
+  try{const s=await server.getPrimaryService(uuid); const chars=await s.getCharacteristics();found.push({s,chars});log('Сервис '+short(s.uuid)+': '+chars.map(c=>short(c.uuid)).join(', '));}
+  catch(e){/* Профиль отсутствует, проверяем следующий */}
+ }
+ if(!found.length)throw Error('Не найден ни один из известных BLE-сервисов ELM327. Возможно, у адаптера другой UUID.');
+ const candidates=[];
+ for(const group of found){for(const c of group.chars){candidates.push({c,s:group.s,write:!!(c.properties.write||c.properties.writeWithoutResponse),notify:!!(c.properties.notify||c.properties.indicate)})}}
+ const writers=candidates.filter(v=>v.write),readers=candidates.filter(v=>v.notify);
+ if(!writers.length)throw Error('BLE найден, но нет характеристики для отправки команд.');
+ // Prefer a writable characteristic in the same service as a notifiable characteristic.
+ let pair=null;
+ for(const w of writers){const r=readers.find(v=>v.s.uuid===w.s.uuid);if(r){pair={w,r};break}}
+ if(!pair)pair={w:writers[0],r:readers[0]||null};
+ writeChar=pair.w.c;readChar=pair.r?.c||null;
+ $('service').textContent=short(pair.w.s.uuid);
+ $('chars').textContent=short(writeChar.uuid)+' / '+(readChar?short(readChar.uuid):'нет');
+ if(readChar){await readChar.startNotifications();readChar.addEventListener('characteristicvaluechanged',notify);log('Уведомления включены');}
+ else log('ВНИМАНИЕ: нет характеристики уведомлений, ответы могут быть недоступны');
+ controls(true);status('Подключён','ok');log('Готово. Нажми «Проверить (ATI)».');
+ }catch(e){log('Ошибка: '+(e.message||e));status('Ошибка подключения','bad');if(device?.gatt?.connected)device.gatt.disconnect();cleanup();}
+}
+async function sendCmd(cmd){
+ if(!writeChar||busy)return;
+ const normalized=cmd.trim().toUpperCase();
+ // Only harmless identification/status AT commands at this stage.
+ if(!/^AT(I|Z|@1|@2|DP|DPN|RV|E[01]|L[01]|S[01])$/.test(normalized)){log('Разрешены только безопасные AT-команды: ATI, ATZ, AT@1, AT@2, ATDP, ATDPN, ATRV, ATE0/1, ATL0/1, ATS0/1.');return;}
+ busy=true;
+ try{
+ const bytes=new TextEncoder().encode(normalized+'\r');
+ log('→ '+normalized);
+ if(writeChar.properties.writeWithoutResponse&&writeChar.writeValueWithoutResponse)await writeChar.writeValueWithoutResponse(bytes);
+ else if(writeChar.properties.write&&writeChar.writeValueWithResponse)await writeChar.writeValueWithResponse(bytes);
+ else await writeChar.writeValue(bytes);
+ }catch(e){log('Не удалось отправить команду: '+e.message)}
+ finally{busy=false;}
+}
+$('connect').onclick=connect;
+$('disconnect').onclick=()=>{if(device?.gatt?.connected)device.gatt.disconnect();else cleanup()};
+$('test').onclick=()=>sendCmd('ATI');$('reset').onclick=()=>sendCmd('ATZ');$('send').onclick=()=>sendCmd($('cmd').value);
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('log').textContent);log('Журнал скопирован')}catch(e){log('Копирование недоступно: '+e.message)}};
+$('clear').onclick=()=>$('log').textContent='';
+log('VAG Diagnostic · BLE — готов к поиску');
+</script></body></html>
