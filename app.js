@@ -468,11 +468,12 @@ function startRecord(){
  if(state.rec)return;
  if(!state.connected){toast('Сначала подключи ELM327');return}
  state.rec={id:String(Date.now()),started:Date.now(),ended:null,vin:state.vin||null,profile:state.profile,peaks:{},samples:0,boostReference:boostBase().kind,reason:'Вручную'};
+ if(!state.stream){state.sportMode=true;void startStream()}
  refreshRecStatus();toast('Запись рекордов началась');
 }
 function captureRecord(key,value){
  const rec=state.rec;
- if(!rec||!Number.isFinite(value))return;
+ if(!rec||!Number.isFinite(value)||!state.connected)return;
  let v=value,metric=key;
  if(key==='0B'){
   // Absolute manifold pressure (kPa) to bar absolute.
