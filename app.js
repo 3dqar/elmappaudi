@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const UUIDS=['0000fff0-0000-1000-8000-00805f9b34fb','0000ffe0-0000-1000-8000-00805f9b34fb','0000ffe5-0000-1000-8000-00805f9b34fb','0000ffb0-0000-1000-8000-00805f9b34fb','000018f0-0000-1000-8000-00805f9b34fb','6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
-const state={device:null,server:null,tx:null,rx:null,connected:false,pending:null,buffer:'',queue:Promise.resolve(),stream:false,streamToken:0,streamIndex:0,values:{},supported:new Set(),supportChecked:false,dtcs:[],protocol:'—',history:[],lastData:0,unsupported:new Set(),misses:{},pollCount:0,sportMode:false,lastDraw:0,vin:null,ecuName:null,calId:null,generation:0,profile:'Audi A4 B7 · 2.0 TDI'};
+const state={device:null,server:null,tx:null,rx:null,connected:false,pending:null,buffer:'',queue:Promise.resolve(),stream:false,streamToken:0,streamIndex:0,values:{},supported:new Set(),supportChecked:false,dtcs:[],protocol:'—',history:[],lastData:0,unsupported:new Set(),misses:{},pollCount:0,sportMode:true,lastDraw:0,ambientRef:null,ambientKind:'estimated',pidTime:{},vin:null,ecuName:null,calId:null,generation:0,profile:'Audi A4 B7 · 2.0 TDI'};
 const PIDS={
 '04':['Нагрузка двигателя','%',a=>a[0]*100/255],
 '05':['Температура ОЖ','°C',a=>a[0]-40],
@@ -61,7 +61,7 @@ function page(name){
  else if(wasSport&&state.stream)stopStream();
 }
 document.querySelectorAll('nav button').forEach(el=>el.addEventListener('click',()=>page(el.dataset.page)));
-function onDisconnect(){state.generation++;stopStream();if(state.pending){clearTimeout(state.pending.timer);state.pending.reject(Error('BLE отключился'));state.pending=null}state.server=null;state.tx=null;state.rx=null;state.vin=null;state.ecuName=null;state.calId=null;state.values={};state.supported.clear();state.unsupported.clear();state.misses={};state.supportChecked=false;setConnection(false);$('device').textContent='—';$('bleprofile').textContent='—';$('ecustatus').textContent='ЭБУ ещё не проверен';$('pidcount').textContent='—';$('scanstatus').textContent='Ожидание подключения';updateIdentity();render();renderSensors();log('Соединение разорвано');}
+function onDisconnect(){state.generation++;stopStream();state.ambientRef=null;state.pidTime={};if(state.pending){clearTimeout(state.pending.timer);state.pending.reject(Error('BLE отключился'));state.pending=null}state.server=null;state.tx=null;state.rx=null;state.vin=null;state.ecuName=null;state.calId=null;state.values={};state.supported.clear();state.unsupported.clear();state.misses={};state.supportChecked=false;setConnection(false);$('device').textContent='—';$('bleprofile').textContent='—';$('ecustatus').textContent='ЭБУ ещё не проверен';$('pidcount').textContent='—';$('scanstatus').textContent='Ожидание подключения';updateIdentity();render();renderSensors();log('Соединение разорвано');}
 async function connect(){
  if(!navigator.bluetooth){toast('Используй Bluefy: Web Bluetooth недоступен');return}
  try{
@@ -76,7 +76,7 @@ async function connect(){
  if(!w||!r)throw Error('Не найдены характеристики записи/уведомлений');
  state.tx=w;state.rx=r;await r.startNotifications();r.addEventListener('characteristicvaluechanged',onNotify);
  $('device').textContent=dev.name||'OBDII';$('bleprofile').textContent=short(chosen.s.uuid)+' · '+short(w.uuid)+' / '+short(r.uuid);
- state.generation++;state.vin=null;state.ecuName=null;state.calId=null;state.supported.clear();state.unsupported.clear();state.misses={};state.pollCount=0;state.supportChecked=false;state.values={};state.history=[];state.dtcs=[];updateIdentity();renderDTC();renderSensors();render();setConnection(true);log('Подключено. BLE '+$('bleprofile').textContent);
+ state.generation++;state.vin=null;state.ecuName=null;state.calId=null;state.supported.clear();state.unsupported.clear();state.misses={};state.pidTime={};state.ambientRef=null;state.pollCount=0;state.supportChecked=false;state.values={};state.history=[];state.dtcs=[];updateIdentity();renderDTC();renderSensors();render();setConnection(true);log('Подключено. BLE '+$('bleprofile').textContent);
  await run('ATI',4000);await run('ATE0',3000);await run('ATL0',3000);await run('ATS0',3000);await run('ATH0',3000);await run('ATSP0',3000);
  toast('Адаптер подключён');void identifyVehicle().then(()=>{if(state.connected&&state.sportMode)void startStream()});
  }catch(e){log('Ошибка подключения: '+(e.message||e));toast('Подключение не удалось');if(state.device?.gatt?.connected)state.device.gatt.disconnect();else onDisconnect()}
@@ -127,7 +127,7 @@ function payload(raw,mode,pid){
  return i<0?null:bytes.slice(i+2);
 }
 function get(pid){return state.values[pid]}
-function setMetric(pid,value){state.values[pid]=value;state.lastData=Date.now();render();if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();}
+function setMetric(pid,value){state.values[pid]=value;state.pidTime[pid]=Date.now();state.lastData=Date.now();render();if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();}
 async function queryPID(pid){
  const out=await run('01'+pid);
  if(/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|\?/i.test(out)){state.misses[pid]=(state.misses[pid]||0)+1;if(state.misses[pid]>=MAX_MISSES)state.unsupported.add(pid);if(document.getElementById('page-sensors').classList.contains('active'))renderSensors();render();return null;}
@@ -167,11 +167,29 @@ function render(){
  put('sport-rpm',display('0C',0));put('sport-speed',display('0D',0));
  put('sport-boost',boostString());put('sport-maf',display('10',1));put('sport-fuel',display('5E',1));put('sport-rail',display('23',0));
  put('sport-load',display('04',0));put('sport-moment',torqueString());put('sport-kw',powerString());
- put('supply',display('42',2));put('sport-intake',display('0F',0));
+ put('supply',display('42',2));put('sport-intake',display('0F',0));put('sport-coolant',display('05',0));put('sport-map',Number.isFinite(v['0B'])?format(v['0B']/100,2):'—');
+ const source=$('boost-source');if(source)source.textContent=boostSource();
+ const live=$('sport-live');if(live){live.textContent=state.connected?(state.stream?'● LIVE':'● ONLINE'):'● OFFLINE';live.classList.toggle('live',state.connected&&state.stream)}
+ const fresh=$('sport-freshness');if(fresh){const latest=state.pidTime['0C'];fresh.textContent=!state.connected?'ELM327 не подключён':!latest?'Ожидание оборотов':(Date.now()-latest>2000?'Данные устарели':'RPM · '+Math.round(Date.now()-latest)+' мс назад')}
  $('ring').style.setProperty('--angle',Math.min(270,Math.max(0,(v['0C']||0)/5500*270))+'deg');
  $('streamstate').textContent=state.stream?'Мониторинг активен':'Остановлен';
 }
-function boostString(){const a=get('0B'),b=get('33');return Number.isFinite(a)&&Number.isFinite(b)?format((a-b)/100,2)+' bar':Number.isFinite(a)?format(a/100,2)+' bar abs':(state.unsupported.has('0B')||(state.supportChecked&&!state.supported.has('0B'))?'н/д':'—')}
+function boostBase(){const baro=get('33');return Number.isFinite(baro)?{kpa:baro,kind:'ECU BARO'}:Number.isFinite(state.ambientRef)?{kpa:state.ambientRef,kind:'Калибровано'}:{kpa:101.3,kind:'Оценка 101.3 кПа'}}
+function boostString(){
+ const map=get('0B');
+ if(!Number.isFinite(map))return '—';
+ const ref=boostBase();
+ const excess=(map-ref.kpa)/100;
+ return (ref.kind==='Оценка 101.3 кПа'?'≈':'')+format(Math.max(0,excess),2);
+}
+function boostSource(){if(!Number.isFinite(get('0B')))return 'Ожидание датчика MAP';const b=boostBase();return b.kind==='Оценка 101.3 кПа'?'≈ по стандартной атмосфере · нажми калибровку':b.kind==='ECU BARO'?'Реальное BARO по ЭБУ':'Ноль откалиброван при заглушенном моторе'}
+function zeroBoost(){
+ const rpm=get('0C'),map=get('0B');
+ if(!state.connected||!Number.isFinite(map)){toast('Сначала подключи ЭБУ и дождись MAP');return}
+ if(!Number.isFinite(rpm)||rpm>50){toast('Для калибровки заглуши мотор, зажигание оставь включённым');return}
+ if(map<75||map>110){toast('MAP вне диапазона атмосферного давления — проверь датчик');return}
+ state.ambientRef=map;render();toast('Ноль установлен: '+map+' kPa');
+}
 function torqueNumber(){const a=get('62'),r=get('63');return Number.isFinite(a)&&Number.isFinite(r)?r*a/100:null}
 function torqueString(){const x=torqueNumber();return x===null?'—':format(x,0)+' Н·м'}
 function powerString(){const tq=torqueNumber(),rpm=get('0C');return tq!==null&&Number.isFinite(rpm)?format(tq*rpm/9549,1)+' кВт':'—'}
@@ -380,11 +398,12 @@ function bind(){
  $('connect').onclick=connect;$('disconnect').onclick=()=>state.device?.gatt?.disconnect();$('readvin').onclick=identifyVehicle;$('copyvin').onclick=async()=>{if(!state.vin)return;try{await navigator.clipboard.writeText(state.vin);toast('VIN скопирован')}catch(e){toast('Копирование не удалось')}};
  $('probe').onclick=probe;$('scan').onclick=scanEngine;$('identify').onclick=identify;
  $('start').onclick=()=>{state.sportMode=false;startStream()};$('stop').onclick=stopStream;$('start-sport').onclick=()=>{state.sportMode=true;startStream()};$('stop-sport').onclick=stopStream;
+ $('sport-connect').onclick=()=>state.connected?toast('ELM327 уже подключён'):connect();$('sport-menu').onclick=()=>page('home');$('zeroBoost').onclick=zeroBoost;
  $('export').onclick=exportReport;$('copylog').onclick=async()=>{try{await navigator.clipboard.writeText($('log').textContent);toast('Журнал скопирован')}catch(e){toast('Не получилось скопировать')}};
  $('clearlog').onclick=()=>{$('log').textContent='';log('Журнал очищен')};
  $('vehicle').onchange=e=>{state.profile=e.target.value;localStorage.setItem('vag-profile',state.profile)};
  const saved=localStorage.getItem('vag-profile');if(saved){$('vehicle').value=saved;state.profile=saved}
  window.addEventListener('resize',drawChart);
- setConnection(false);updateIdentity();render();renderSensors();renderDTC();log('VAG Diagnostic · Pro — готов к подключению')
+ setConnection(false);updateIdentity();render();renderSensors();renderDTC();page('sport');log('VAG Diagnostic · Pro — готов к подключению')
 }
 bind();
