@@ -116,3 +116,24 @@ body:has(#page-sport.active)>header,body:has(#page-sport.active)>nav{display:non
 
 .cockpit-zero{font-size:9px;min-height:20px;padding:2px 10px;border-radius:7px;color:#9ef4e4;border:1px solid #367b7e;background:#193f48;line-height:1.1}
 @media(max-height:650px){.cockpit-zero{min-height:18px;padding:1px 7px}.boost-source{display:none}}
+
+/* SPORT RECORDS — compact recorder and local session archive */
+.cockpit{grid-template-rows:auto minmax(120px,2.5fr) minmax(145px,2.3fr) minmax(52px,.8fr) auto auto}
+.rec-bar{display:flex;align-items:center;gap:7px;background:linear-gradient(95deg,#1c2439,#122135);border:1px solid #405273;border-radius:12px;padding:5px 7px;min-height:42px}
+.rec-button{background:#7a263a;border:1px solid #e04c6f;color:#fff;min-width:64px;border-radius:8px;font-weight:850;padding:5px 7px;font-size:11px;min-height:30px}
+.rec-button.recording{background:#f04a64;box-shadow:0 0 16px #f04a6466;animation:recordPulse 1.5s ease-in-out infinite}
+@keyframes recordPulse{50%{box-shadow:0 0 4px #f04a6422}}
+.rec-details{display:flex;flex-direction:column;min-width:0;flex:1;gap:1px}.rec-details strong{color:#e0e9ff;font-size:9px;letter-spacing:.45px;white-space:nowrap}.rec-details strong.recording{color:#ff7892}.rec-details small{font-size:9px;color:#8ea2c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-button{background:#273b5c;border:1px solid #3b5376;color:#dfe8ff;font-size:10px;border-radius:8px;min-height:30px;padding:5px 8px;white-space:nowrap}.history-button span{color:#73e6ce;margin-left:3px}
+.records-modal[hidden]{display:none!important}
+.records-modal{position:fixed;inset:0;background:#040812e8;backdrop-filter:blur(13px);z-index:100;display:flex;justify-content:center;align-items:flex-end}
+.records-sheet{width:100%;max-width:650px;height:min(82dvh,720px);background:linear-gradient(160deg,#1b2b45,#0d1526);border:1px solid #486081;border-radius:22px 22px 0 0;padding:20px 14px calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.records-head{display:flex;justify-content:space-between;align-items:start}.records-head small{font-size:10px;letter-spacing:2px;color:#7eacff}.records-head h2{font-size:22px;margin:3px 0}.records-head button{font-size:20px;background:#253856;padding:6px 12px;min-height:32px}
+.records-list{min-height:0;overflow-y:auto;flex:1}.records-empty{padding:30px 10px;text-align:center;color:#9eafca;border:1px dashed #48617d;border-radius:12px;font-size:13px}
+.record-item{border:1px solid #354967;background:#15233a;border-radius:13px;margin-bottom:9px;overflow:hidden}
+.record-summary{padding:13px;display:flex;justify-content:space-between;align-items:center;color:#d8e7ff;font-size:14px;cursor:pointer}.record-summary b{color:#64e3c6;font-variant-numeric:tabular-nums}.record-content{border-top:1px solid #334763;padding:12px}
+.record-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.record-metric{padding:9px;background:#0c1729;border:1px solid #2d435f;border-radius:10px;display:flex;flex-direction:column;gap:4px}.record-metric span{color:#a2b5d4;font-size:10px}.record-metric strong{color:#fff;font-size:18px;font-variant-numeric:tabular-nums}.record-metric small{font-size:10px;color:#8da0bd}
+.record-foot,.records-tip{color:#90a4be;font-size:11px;line-height:1.5}.record-actions{display:flex;gap:8px}.record-actions button{font-size:12px;background:#293f5d;min-height:34px}.record-actions .record-delete{background:#59273b}
+@media(max-height:700px){.cockpit{grid-template-rows:auto minmax(112px,2.2fr) minmax(120px,2fr) minmax(35px,.65fr) auto auto;gap:4px}.rec-bar{min-height:36px;padding:3px 5px}.cockpit-footer{min-height:34px;padding:3px 6px}.rec-details small{font-size:8px}}
+@media(max-width:375px){.history-button{font-size:9px;padding:4px 5px}.rec-button{min-width:58px}.rec-details strong{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.rec-button.recording{animation:none}}
