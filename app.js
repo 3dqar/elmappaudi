@@ -198,16 +198,20 @@ function decodeDtc(a,b){
  return f+((a>>4)&3).toString(16).toUpperCase()+(a&15).toString(16).toUpperCase()+(b>>4).toString(16).toUpperCase()+(b&15).toString(16).toUpperCase();
 }
 function parseDTC(raw,mode,label){
- const out=[];
  const prefix=mode==='03'?'43':mode==='07'?'47':'4A';
- for(let line of hexLines(raw)){
-  let i=line.indexOf(prefix);
-  if(i<0)continue;let data=line.slice(i+2);
-  // Some ECUs include a count byte, others don't; ignore count only when payload length is odd.
-  if(data.length%4===2)data=data.slice(2);
-  for(let j=0;j+4<=data.length;j+=4){const a=parseInt(data.slice(j,j+2),16),b=parseInt(data.slice(j+2,j+4),16);if(a===0&&b===0)continue;out.push({code:decodeDtc(a,b),label})}
+ const bytes=responseBytes(raw,prefix);
+ if(!bytes.length||bytes[0]!==parseInt(prefix,16))return [];
+ let data=bytes.slice(1);
+ // OBD reports usually carry a leading trouble-code count; remove if plausible.
+ if(data.length&&data[0]<=6&&((data.length-1)%2===0||(data[0]>0&&data.length>=1+data[0]*2)))data=data.slice(1);
+ const result=[];
+ for(let i=0;i+1<data.length;i+=2){
+  const a=data[i],b=data[i+1];
+  if(a===0&&b===0)continue;
+  // Trailing padding from CAN frames is ignored.
+  result.push({code:decodeDtc(a,b),label});
  }
- return out;
+ return result;
 }
 function renderDTC(){
  const root=$('dtcs');root.innerHTML='';$('errorcount').textContent=String(state.dtcs.length);
@@ -223,14 +227,14 @@ function renderDTC(){
  });
 }
 async function scanEngine(){
- if(!state.connected)return;stopStream();$('scan').disabled=true;$('scanstatus').textContent='Сканирование двигателя…';state.dtcs=[];
+ if(!state.connected)return;stopStream();$('scan').disabled=true;$('scanstatus').textContent='Сканирование двигателя…';state.dtcs=[];let successful=0;
  try{
   for(const [cmd,label] of [['03','Сохранённая'],['07','Ожидающая'],['0A','Постоянная']]){
-   try{const rawOut=await run(cmd,9000);if(/NO DATA/i.test(rawOut)){log(cmd+': нет данных');continue}state.dtcs.push(...parseDTC(rawOut,cmd,label))}
+   try{const rawOut=await run(cmd,9000);if(/NO DATA/i.test(rawOut)){log(cmd+': нет данных');successful++;continue}if(/UNABLE TO CONNECT|ERROR|STOPPED|\?/i.test(rawOut))throw Error(rawOut.trim());successful++;state.dtcs.push(...parseDTC(rawOut,cmd,label))}
    catch(e){log('DTC '+cmd+': '+e.message)}
   }
   const uniq=new Set();state.dtcs=state.dtcs.filter(d=>{const key=d.code+d.label;if(uniq.has(key))return false;uniq.add(key);return true});
-  $('scanstatus').textContent='Готово: '+state.dtcs.length+' кодов (только стандартный OBD-II)';
+  $('scanstatus').textContent=(successful===3?'Готово':'Частично: '+successful+'/3 запросов')+' · '+state.dtcs.length+' кодов (стандартный OBD-II)';
   renderDTC();
  }finally{$('scan').disabled=!state.connected}
 }
@@ -243,23 +247,21 @@ async function identify(){
 }
 
 function responseBytes(raw,service){
- // Parse an ELM response with optional 7E8 CAN header or numbered multi-line frames.
- // Strip status lines, echo, ASCII chatter and 1-byte ELM line counters.
+ // ELM327 replies may have ECHO, CAN headers, ISO-TP frame prefixes, or "0:" line indexes.
  const rows=raw.toUpperCase().split(/[\r\n]+/).map(x=>x.trim()).filter(Boolean);
  const data=[];
  for(let line of rows){
   if(/^(SEARCHING|BUS INIT|NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|OK|\?)/.test(line))continue;
-  line=line.replace(/^\d{1,2}\s*:\s*/,'');
-  // Reject non-hex rows (e.g. echo "0902").
-  if(/^0[1-9]0[0-9A-F]$/.test(line)||/[^0-9A-F\s]/.test(line))continue;
-  let bytes=(line.match(/[A-F0-9]{2}/g)||[]).map(x=>parseInt(x,16));
-  if(!bytes.length)continue;
-  // Remove optional standard 11-bit CAN ID header, if present.
-  if(bytes.length>3&&bytes[0]===0x07&&bytes[1]>=0xE8&&bytes[1]<=0xEF)bytes=bytes.slice(2);
-  // Remove single-frame / first-frame / consecutive-frame PCI bytes if they are visible.
-  if(bytes[0]>=0x10&&bytes[0]<=0x1F&&bytes.length>2&&bytes[1]>0)bytes=bytes.slice(2);
+  if(/^(09(?:02|04|0A)|01[A-F0-9]{2}|03|07|0A)$/.test(line))continue;
+  line=line.replace(/^\d{1,2}\s*:\s*/,'').trim();
+  line=line.replace(/^(?:[A-F0-9]{3}|[A-F0-9]{8})\s+/,'').trim();
+  const compact=line.replace(/\s+/g,'');
+  if(!/^[0-9A-F]+$/.test(compact)||compact.length%2)continue;
+  let bytes=compact.match(/../g).map(x=>parseInt(x,16));
+  // ISO-TP: first frame (10 nn), consecutive frames (21, 22…), single frame (0n).
+  if(bytes[0]>=0x10&&bytes[0]<=0x1F&&bytes.length>2)bytes=bytes.slice(2);
   else if(bytes[0]>=0x20&&bytes[0]<=0x2F&&bytes.length>1)bytes=bytes.slice(1);
-  else if(bytes[0]>0&&bytes[0]<=7&&bytes.length>1&&bytes.includes(parseInt(service,16)))bytes=bytes.slice(1);
+  else if(bytes[0]>0&&bytes[0]<=7&&bytes.length>1&&bytes[1]===parseInt(service,16))bytes=bytes.slice(1);
   data.push(...bytes);
  }
  const svc=parseInt(service,16);
