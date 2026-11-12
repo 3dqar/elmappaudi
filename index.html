@@ -21,22 +21,23 @@ input{width:100%;border-radius:12px;padding:13px;background:#0c1424;border:1px s
 </head>
 <body>
 <header><div><div class="brand">VAG · DIAGNOSTICS</div><h1>ELM327 BLE</h1></div><div id="status" class="status"><i class="dot"></i><span id="state">Не подключён</span></div></header>
-<p>Этап 1 — поиск Bluetooth-адаптера и проверка связи. Никаких изменений в автомобиле.</p>
+<p>Этап 2 — связь с ЭБУ двигателя. Только чтение параметров и ошибок, без изменений в автомобиле.</p>
 <section class="panel"><h2>Подключение</h2><div class="kv"><span>Адаптер</span><span id="device">—</span></div><div class="kv"><span>BLE-сервис</span><span id="service">—</span></div><div class="kv"><span>Запись / уведомления</span><span id="chars">—</span></div><div class="buttons"><button id="connect">Найти ELM327</button><button class="secondary" id="disconnect" disabled>Отключить</button></div></section>
 <section class="panel"><h2>Проверка ELM327</h2><p class="small">Включи зажигание и вставь адаптер в OBD2. После подключения нажми «Проверить».</p><div class="buttons"><button id="test" disabled>Проверить (ATI)</button><button class="secondary" id="reset" disabled>Сброс (ATZ)</button></div><div style="margin-top:15px"><label for="cmd">Ручная AT-команда (только чтение информации)</label><input id="cmd" placeholder="Например, ATDP" autocomplete="off" autocapitalize="characters"><button style="width:100%;margin-top:8px" id="send" disabled>Отправить команду</button></div></section>
+<section class="panel"><h2>Диагностика двигателя · OBD-II</h2><p class="small">Включи зажигание. Для оборотов запусти двигатель на стоянке. Не используй телефон во время движения.</p><div class="buttons"><button id="ecu" disabled>Связь с ЭБУ (0100)</button><button id="protocol" class="secondary" disabled>Протокол (ATDP)</button><button id="rpm" disabled>Обороты (010C)</button><button id="coolant" class="secondary" disabled>Температура (0105)</button><button id="dtc" disabled>Ошибки (03)</button><button id="voltage" class="secondary" disabled>Напряжение (ATRV)</button></div><div class="kv"><span>Обороты двигателя</span><span id="rpmv">—</span></div><div class="kv"><span>Температура ОЖ</span><span id="tempv">—</span></div><p class="note">Стандартные OBD-II команды; поддержка зависит от ЭБУ. Ошибки не удаляются.</p></section>
 <section class="panel"><h2>Журнал</h2><div class="log" id="log" aria-live="polite"></div><div class="buttons"><button class="secondary" id="copy">Скопировать журнал</button><button class="secondary" id="clear">Очистить</button></div></section>
 <p class="note">Работает только в браузере, поддерживающем Web Bluetooth (например, Bluefy), через HTTPS. Не все ELM327 BLE используют одинаковые UUID. Если подключение не удалось — скопируй журнал.</p>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
 const knownServices=['0000ffe0-0000-1000-8000-00805f9b34fb','0000fff0-0000-1000-8000-00805f9b34fb','0000ffe5-0000-1000-8000-00805f9b34fb','0000ffb0-0000-1000-8000-00805f9b34fb','000018f0-0000-1000-8000-00805f9b34fb','6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
-let device=null,server=null,writeChar=null,readChar=null,busy=false;
+let device=null,server=null,writeChar=null,readChar=null,busy=false,received='',activeCommand='';
 const short=u=>String(u).replace('-0000-1000-8000-00805f9b34fb','').slice(0,16);
 function log(s){const time=new Date().toLocaleTimeString();$('log').textContent+='['+time+'] '+s+'\n';$('log').scrollTop=$('log').scrollHeight;}
 function status(s,kind=''){$('state').textContent=s;$('status').className='status '+kind}
-function controls(connected){$('connect').disabled=connected;$('disconnect').disabled=!connected;$('test').disabled=!connected;$('reset').disabled=!connected;$('send').disabled=!connected}
+function controls(connected){$('connect').disabled=connected;for(const id of ['disconnect','test','reset','send','ecu','protocol','rpm','coolant','dtc','voltage'])$(id).disabled=!connected}
 function cleanup(){writeChar=null;readChar=null;server=null;controls(false);status('Не подключён');}
-function notify(e){const bytes=new Uint8Array(e.target.value.buffer,e.target.value.byteOffset,e.target.value.byteLength);const txt=new TextDecoder().decode(bytes);log('← '+JSON.stringify(txt));}
+function notify(e){const bytes=new Uint8Array(e.target.value.buffer,e.target.value.byteOffset,e.target.value.byteLength);const txt=new TextDecoder().decode(bytes);log('← '+JSON.stringify(txt));received+=txt;if(received.includes('>')){const response=received.slice(0,received.indexOf('>'));received=received.slice(received.indexOf('>')+1);interpret(activeCommand,response);activeCommand='';}}
 function disconnected(){log('BLE соединение разорвано');cleanup();}
 async function connect(){
  if(!navigator.bluetooth){log('Этот браузер не поддерживает Web Bluetooth. Открой страницу в Bluefy.');status('Нет Web Bluetooth','bad');return}
@@ -68,14 +69,31 @@ async function connect(){
  controls(true);status('Подключён','ok');log('Готово. Нажми «Проверить (ATI)».');
  }catch(e){log('Ошибка: '+(e.message||e));status('Ошибка подключения','bad');if(device?.gatt?.connected)device.gatt.disconnect();cleanup();}
 }
+function interpret(cmd,raw){
+ const data=raw.toUpperCase().split(/[\r\n]+/).map(x=>x.trim()).filter(Boolean);
+ if(data.some(x=>/NO DATA|UNABLE TO CONNECT|STOPPED|ERROR|BUS INIT/.test(x))){log('ЭБУ: '+data.join(' | '));return;}
+ if(cmd==='010C'||cmd==='0105'){
+  // Search for 41 PID AA BB; tolerate compact and spaced replies.
+  const hex=data.filter(x=>!x.includes('SEARCHING')).join(' ').replace(/[^A-F0-9]/g,'');
+  const pid=cmd==='010C'?'410C':'4105';
+  const i=hex.indexOf(pid);
+  if(i<0){log('Ответ PID не распознан: '+data.join(' | '));return;}
+  const a=parseInt(hex.slice(i+4,i+6),16);
+  if(!Number.isFinite(a)){log('Неполный ответ PID');return;}
+  if(cmd==='0105'){$('tempv').textContent=(a-40)+' °C';log('Температура ОЖ: '+(a-40)+' °C');}
+  else {const b=parseInt(hex.slice(i+6,i+8),16);if(!Number.isFinite(b)){log('Неполный ответ RPM');return;}const rpm=(a*256+b)/4;$('rpmv').textContent=rpm+' об/мин';log('Обороты: '+rpm+' об/мин');}
+ }
+ if(cmd==='0100')log(data.some(x=>/41 ?00/i.test(x))?'ЭБУ ответил на запрос поддерживаемых PID':'Ответ 0100: '+data.join(' | '));
+ if(cmd==='03')log('Сырые данные кодов ошибок: '+data.join(' | ')+' (расшифровка будет следующим этапом)');
+}
 async function sendCmd(cmd){
  if(!writeChar||busy)return;
  const normalized=cmd.trim().toUpperCase();
  // Only harmless identification/status AT commands at this stage.
- if(!/^AT(I|Z|@1|@2|DP|DPN|RV|E[01]|L[01]|S[01])$/.test(normalized)){log('Разрешены только безопасные AT-команды: ATI, ATZ, AT@1, AT@2, ATDP, ATDPN, ATRV, ATE0/1, ATL0/1, ATS0/1.');return;}
+ if(!/^(AT(I|Z|@1|@2|DP|DPN|RV|E[01]|L[01]|S[01])|0100|010C|0105|03)$/.test(normalized)){log('Разрешены идентификация AT, 0100, 010C, 0105 и 03. Сброс ошибок запрещён.');return;}
  busy=true;
  try{
- const bytes=new TextEncoder().encode(normalized+'\r');
+ received='';activeCommand=normalized;const bytes=new TextEncoder().encode(normalized+'\r');
  log('→ '+normalized);
  if(writeChar.properties.writeWithoutResponse&&writeChar.writeValueWithoutResponse)await writeChar.writeValueWithoutResponse(bytes);
  else if(writeChar.properties.write&&writeChar.writeValueWithResponse)await writeChar.writeValueWithResponse(bytes);
@@ -86,6 +104,12 @@ async function sendCmd(cmd){
 $('connect').onclick=connect;
 $('disconnect').onclick=()=>{if(device?.gatt?.connected)device.gatt.disconnect();else cleanup()};
 $('test').onclick=()=>sendCmd('ATI');$('reset').onclick=()=>sendCmd('ATZ');$('send').onclick=()=>sendCmd($('cmd').value);
+$('ecu').onclick=()=>sendCmd('0100');
+$('protocol').onclick=()=>sendCmd('ATDP');
+$('rpm').onclick=()=>sendCmd('010C');
+$('coolant').onclick=()=>sendCmd('0105');
+$('dtc').onclick=()=>sendCmd('03');
+$('voltage').onclick=()=>sendCmd('ATRV');
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('log').textContent);log('Журнал скопирован')}catch(e){log('Копирование недоступно: '+e.message)}};
 $('clear').onclick=()=>$('log').textContent='';
 log('VAG Diagnostic · BLE — готов к поиску');
